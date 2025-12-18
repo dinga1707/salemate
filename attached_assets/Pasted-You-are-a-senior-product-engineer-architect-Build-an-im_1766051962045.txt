@@ -1,0 +1,161 @@
+You are a senior product engineer + architect. Build an implementation-ready plan and starter code for an app called **Salemate**.
+
+========================
+PRODUCT SUMMARY
+========================
+Salemate is an Indian, multi-language billing + stock management app for **Android / iOS / Web**, similar to MyBillBook and Zoho Billing.
+It must work **offline-first** (minimum functionality even without network), and sync when internet is available.
+It is a **subscription-based** product with multiple plans.
+
+Use ONLY the features described below. Do NOT invent new features.
+
+========================
+FEATURE SPEC (SOURCE OF TRUTH)
+========================
+1) Stock Management
+- “Stock” = items seller can sell to receiver.
+- Each stock item contains: item name, brand, HSN/SAC, unit, GST %, cost price, margin, sell price (= cost price + margin), discount (default 0).
+- Add stock via:
+  a) Image scan of supplier bill (hard/soft copy): scan image and add items into stock
+  b) App-to-app stock transfer:
+     - If both seller & receiver are on Salemate:
+       - Seller creates transfer request
+       - Seller stock reduces and items appear as “in transit”
+       - Receiver accepts only after physically receiving items
+       - On accept: items move from seller “transit” to receiver stock AND invoice is raised from seller to receiver
+       - On reject: items move back to seller stock
+  c) Manual add/update/delete stock
+- User can view: all items in stock + total stock value
+- QR-code based system to enter items (scan QR to add item to invoice/perform)
+- Items are stored brand-wise; location is captured from app
+
+2) Templates
+- User can choose a billing template from predefined templates
+
+3) Billing (Invoice)
+- Generate invoice by adding items + quantity
+- HSN/SAC and GST auto-filled from item master
+- User can override sell price OR add discount
+- Items can be added by scanning product QR code
+
+4) Perform (Proforma)
+- Create proforma same as invoice
+- Can print OR create app-to-app request to move items to transit and then to receiver stock (similar transfer flow)
+
+5) GST
+- Generate GST report for filing online
+- Upload report/excel and file GST as per user GST agreement (capture in setup)
+
+6) Future Idea (do not build now, but keep in architecture notes)
+- Store marketplace listing
+- Consumer app to browse nearby stores, add to cart, order
+- Store receives order, packs, marks ready for pickup
+
+7) Subscription Plans
+- Free:
+  - 10 bills/month
+  - manual stock addition only
+  - 1 bill template with Salemate watermark
+  - 1 login per store
+  - generate GST report
+- ₹99/month:
+  - unlimited bills
+  - manual stock addition
+  - 1 login per store
+  - unlimited proformas
+  - can select only ONE template once per year; extra template ₹499
+- ₹249/month:
+  - all billing features including templates
+  - 4 logins per store
+- ₹399/month:
+  - GST filing
+  - income tax filing
+  - marketplace
+
+8) Telemetry (Analytics)
+- Monthly active users by platform (Android vs iOS vs Web)
+- Subscription status paid vs free
+- Daily app usage
+- Location-wise item sold and brands stored
+
+========================
+HARD CONSTRAINTS
+========================
+- Offline-first: must support creating invoices, viewing stock, and adding manual stock even without internet.
+- Sync: when online, data must sync safely without duplicates.
+- Multi-language: support language selection + translated UI strings.
+- Do not mention Flutter. Avoid over-naming specific vendor tech unless necessary.
+- Output must be practical and directly implementable.
+
+========================
+WHAT YOU MUST DELIVER
+========================
+A) Requirements → Modules
+- Break the app into clear modules (Auth/Store, Stock, Billing, Proforma, Transfers/Transit, Templates, Subscription, GST Reports/Filing, QR/Scan, Telemetry, Sync).
+- For each module: purpose + key screens + core user flows + edge cases.
+
+B) Data Model (Offline + Sync friendly)
+- Provide database tables/collections with fields & relationships:
+  - Store, User, Role/Login limits
+  - Item (stock master), Brand, Location
+  - Inventory quantities + valuation
+  - Invoice, InvoiceLineItem
+  - Proforma, ProformaLineItem
+  - TransferRequest, TransferLineItem, Transit states
+  - Template
+  - SubscriptionPlan, SubscriptionStatus, Entitlements
+  - GSTReport, GSTFilingJob
+  - TelemetryEvent
+- Include indexes, unique constraints, and “conflict resolution strategy” notes.
+
+C) API / Service boundaries
+- Define endpoint-like contracts (even if local-first):
+  - Create/update items
+  - Create invoice, list invoices
+  - Create proforma
+  - Create transfer request, accept/reject transfer
+  - Generate GST report
+  - Upload GST report and file (only for eligible plan)
+  - Fetch templates based on plan
+  - Validate entitlement limits (10 bills/month, logins/store, template rules)
+- Include request/response JSON examples for key flows.
+
+D) Offline + Sync strategy
+- Local data ownership rules
+- Sync queue design
+- Idempotency keys
+- Conflict handling (same item edited on two devices, transfer accept when offline, etc.)
+- Minimal online dependency: define exactly which actions must be online (e.g., subscription validation, filing).
+
+E) Starter implementation in this Replit project
+- Create a repo-style folder structure with:
+  - /docs (spec notes, flows)
+  - /server (API + sync + subscription logic)
+  - /client (web UI starter with i18n placeholders)
+  - /shared (types, validation, constants, entitlement rules)
+  - /db (schema + migrations or models)
+  - /scripts (seed, local dev)
+- Provide working minimal code that supports:
+  1) Item CRUD (manual)
+  2) Create Invoice offline (local)
+  3) Transfer request lifecycle (create + accept/reject) with transit states
+  4) Entitlement check for Free plan (10 invoices/month)
+  5) Multi-language string framework stub
+  6) Telemetry event logging stub (local capture + sync later)
+
+F) Plan/Entitlements rules
+- Encode plan rules cleanly (free/99/249/399) and enforce in code.
+
+========================
+QUALITY BAR
+========================
+- No placeholders like “TODO implement later” for the core flows above.
+- Provide clean architecture, readable code, and clear docs.
+- Include basic tests for entitlement checks and transfer state transitions.
+
+Now start by:
+1) Writing the module breakdown + flows
+2) Then the data model
+3) Then API contracts
+4) Then offline/sync strategy
+5) Then generate the folder structure and starter code
