@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { db } from "@/services/storage";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, FileText, CheckCircle, Clock } from "lucide-react";
+import { Plus, FileText } from "lucide-react";
 import { Link } from "wouter";
 import { checkEntitlement } from "@/services/entitlements";
 import { useToast } from "@/hooks/use-toast";
@@ -11,18 +10,25 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 
 export default function InvoiceList() {
-  const { data: invoices } = useQuery({ queryKey: ['invoices'], queryFn: () => db.getInvoices() });
+  const { data: invoices } = useQuery({ 
+    queryKey: ['invoices'], 
+    queryFn: () => api.invoices.list() 
+  });
   const { toast } = useToast();
 
-  const handleCreateClick = (e: React.MouseEvent) => {
-    const entitlement = checkEntitlement("create_invoice");
-    if (!entitlement.allowed) {
-      e.preventDefault();
-      toast({
-        variant: "destructive",
-        title: "Plan Limit Reached",
-        description: entitlement.reason,
-      });
+  const handleCreateClick = async (e: React.MouseEvent) => {
+    try {
+      const entitlement = await checkEntitlement("create_invoice");
+      if (!entitlement.allowed) {
+        e.preventDefault();
+        toast({
+          variant: "destructive",
+          title: "Plan Limit Reached",
+          description: entitlement.reason,
+        });
+      }
+    } catch (error) {
+      console.error("Error checking entitlement:", error);
     }
   };
 
@@ -34,7 +40,7 @@ export default function InvoiceList() {
           <p className="text-muted-foreground mt-1">Manage invoices and estimates.</p>
         </div>
         <Link href="/billing/new" onClick={handleCreateClick}>
-          <Button>
+          <Button data-testid="button-new-invoice">
             <Plus className="mr-2 h-4 w-4" /> New Invoice
           </Button>
         </Link>
@@ -55,7 +61,7 @@ export default function InvoiceList() {
           </TableHeader>
           <TableBody>
             {invoices?.slice().reverse().map((inv) => (
-              <TableRow key={inv.id}>
+              <TableRow key={inv.id} data-testid={`row-invoice-${inv.id}`}>
                 <TableCell className="font-medium">{inv.invoiceNumber}</TableCell>
                 <TableCell>{format(new Date(inv.date), "dd MMM yyyy")}</TableCell>
                 <TableCell>
@@ -64,8 +70,8 @@ export default function InvoiceList() {
                     <span className="text-xs text-muted-foreground">{inv.customerPhone}</span>
                   </div>
                 </TableCell>
-                <TableCell>{inv.items.length} items</TableCell>
-                <TableCell className="font-bold">₹{inv.grandTotal.toLocaleString('en-IN')}</TableCell>
+                <TableCell>{inv.items?.length || 0} items</TableCell>
+                <TableCell className="font-bold">₹{Number(inv.grandTotal).toLocaleString('en-IN')}</TableCell>
                 <TableCell>
                   <Badge variant={inv.status === 'PAID' ? 'default' : 'outline'} className={inv.status === 'PAID' ? 'bg-success hover:bg-success/90' : ''}>
                     {inv.status}

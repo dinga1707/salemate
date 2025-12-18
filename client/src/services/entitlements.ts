@@ -1,30 +1,28 @@
-import { SubscriptionPlan, SubscriptionPlanType } from "@/shared/schema";
-import { db } from "./storage";
-import { startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns";
+import { api } from "@/lib/api";
 
 export const PLAN_LIMITS = {
-  [SubscriptionPlan.FREE]: {
+  FREE: {
     billsPerMonth: 10,
     logins: 1,
     templates: 1,
     proforma: false,
     gstFiling: false,
   },
-  [SubscriptionPlan.BASIC]: {
+  BASIC: {
     billsPerMonth: Infinity,
     logins: 1,
-    templates: 1, // + paid extras
+    templates: 1,
     proforma: true,
     gstFiling: false,
   },
-  [SubscriptionPlan.PRO]: {
+  PRO: {
     billsPerMonth: Infinity,
     logins: 4,
     templates: Infinity,
     proforma: true,
     gstFiling: false,
   },
-  [SubscriptionPlan.ENTERPRISE]: {
+  ENTERPRISE: {
     billsPerMonth: Infinity,
     logins: Infinity,
     templates: Infinity,
@@ -33,23 +31,15 @@ export const PLAN_LIMITS = {
   },
 };
 
-export function checkEntitlement(feature: "create_invoice" | "create_proforma" | "add_template" | "gst_filing") {
-  const store = db.getStoreProfile();
-  const plan = store.plan as SubscriptionPlanType;
+export async function checkEntitlement(feature: "create_invoice" | "create_proforma" | "add_template" | "gst_filing") {
+  const store = await api.store.get();
+  const plan = store.plan as keyof typeof PLAN_LIMITS;
   const limits = PLAN_LIMITS[plan];
 
   if (feature === "create_invoice") {
     if (limits.billsPerMonth === Infinity) return { allowed: true };
 
-    const invoices = db.getInvoices();
-    const now = new Date();
-    const start = startOfMonth(now);
-    const end = endOfMonth(now);
-
-    const invoicesThisMonth = invoices.filter((inv) => {
-      const d = parseISO(inv.date);
-      return isWithinInterval(d, { start, end });
-    });
+    const invoicesThisMonth = await api.invoices.currentMonth();
 
     if (invoicesThisMonth.length >= limits.billsPerMonth) {
       return { 

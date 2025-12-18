@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { db } from "@/services/storage";
-import { Item, itemSchema } from "@/shared/schema";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,9 +25,28 @@ import { Plus, Search, QrCode } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { z } from "zod";
+
+const itemFormSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  brand: z.string().optional(),
+  hsn: z.string().optional(),
+  unit: z.string().default("pcs"),
+  gstPercent: z.coerce.number().min(0).max(100).default(0),
+  costPrice: z.coerce.number().min(0),
+  sellingPrice: z.coerce.number().min(0),
+  margin: z.coerce.number().min(0).default(0),
+  quantity: z.coerce.number().int().min(0).default(0),
+  location: z.string().optional(),
+});
+
+type ItemFormData = z.infer<typeof itemFormSchema>;
 
 export default function InventoryList() {
-  const { data: items } = useQuery({ queryKey: ['items'], queryFn: () => db.getItems() });
+  const { data: items } = useQuery({ 
+    queryKey: ['items'], 
+    queryFn: () => api.items.list() 
+  });
   const [search, setSearch] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
@@ -55,9 +73,10 @@ export default function InventoryList() {
             className="pl-8 bg-background" 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            data-testid="input-search"
           />
         </div>
-        <Button variant="outline" size="icon">
+        <Button variant="outline" size="icon" data-testid="button-qr-scan">
             <QrCode className="h-4 w-4" />
         </Button>
       </div>
@@ -76,14 +95,14 @@ export default function InventoryList() {
           </TableHeader>
           <TableBody>
             {filteredItems?.map((item) => (
-              <TableRow key={item.id}>
+              <TableRow key={item.id} data-testid={`row-item-${item.id}`}>
                 <TableCell className="font-medium">{item.name}</TableCell>
                 <TableCell>{item.brand || "-"}</TableCell>
                 <TableCell>{item.quantity} {item.unit}</TableCell>
-                <TableCell>₹{item.costPrice}</TableCell>
-                <TableCell>₹{item.sellingPrice}</TableCell>
+                <TableCell>₹{Number(item.costPrice).toFixed(2)}</TableCell>
+                <TableCell>₹{Number(item.sellingPrice).toFixed(2)}</TableCell>
                 <TableCell>
-                  {item.quantity < 5 ? (
+                  {Number(item.quantity) < 5 ? (
                     <Badge variant="destructive">Low Stock</Badge>
                   ) : (
                     <Badge variant="outline" className="bg-success/10 text-success border-success/20">In Stock</Badge>
@@ -109,10 +128,9 @@ function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (op
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
-  const form = useForm<Item>({
-    resolver: zodResolver(itemSchema),
+  const form = useForm<ItemFormData>({
+    resolver: zodResolver(itemFormSchema),
     defaultValues: {
-      id: crypto.randomUUID(),
       name: "",
       brand: "",
       hsn: "",
@@ -122,22 +140,35 @@ function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (op
       sellingPrice: 0,
       margin: 0,
       quantity: 0,
-      updatedAt: new Date().toISOString(),
+      location: "",
     }
   });
 
-  const onSubmit = (data: Item) => {
-    db.saveItem(data);
-    queryClient.invalidateQueries({ queryKey: ['items'] });
-    toast({ title: "Item Added", description: `${data.name} has been added to inventory.` });
-    onOpenChange(false);
-    form.reset({ ...data, id: crypto.randomUUID(), name: "" }); // Reset for next add
+  const createItemMutation = useMutation({
+    mutationFn: (data: ItemFormData) => api.items.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      toast({ title: "Item Added", description: "Item has been added to inventory." });
+      onOpenChange(false);
+      form.reset();
+    },
+    onError: (error: Error) => {
+      toast({ 
+        variant: "destructive",
+        title: "Error", 
+        description: error.message || "Failed to create item" 
+      });
+    }
+  });
+
+  const onSubmit = (data: ItemFormData) => {
+    createItemMutation.mutate(data);
   };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger asChild>
-        <Button>
+        <Button data-testid="button-add-item">
           <Plus className="mr-2 h-4 w-4" /> Add Item
         </Button>
       </SheetTrigger>
@@ -157,7 +188,7 @@ function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (op
                 <FormItem>
                   <FormLabel>Item Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g. Samsung Galaxy M32" {...field} />
+                    <Input placeholder="e.g. Samsung Galaxy M32" {...field} data-testid="input-item-name" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -200,7 +231,7 @@ function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (op
                     <FormItem>
                     <FormLabel>Quantity</FormLabel>
                     <FormControl>
-                        <Input type="number" {...field} onChange={e => field.onChange(Number(e.target.value))} />
+                        <Input type="number" {...field} data-testid="input-quantity" />
                     </FormControl>
                     <FormMessage />
                     </FormItem>
@@ -226,7 +257,7 @@ function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (op
                     <FormItem>
                     <FormLabel>GST %</FormLabel>
                     <FormControl>
-                        <Input type="number" {...field} onChange={e => field.onChange(Number(e.target.value))} />
+                        <Input type="number" {...field} />
                     </FormControl>
                     <FormMessage />
                     </FormItem>
@@ -242,7 +273,7 @@ function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (op
                     <FormItem>
                     <FormLabel>Cost Price (₹)</FormLabel>
                     <FormControl>
-                        <Input type="number" {...field} onChange={e => field.onChange(Number(e.target.value))} />
+                        <Input type="number" step="0.01" {...field} data-testid="input-cost-price" />
                     </FormControl>
                     <FormMessage />
                     </FormItem>
@@ -255,7 +286,7 @@ function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (op
                     <FormItem>
                     <FormLabel>Selling Price (₹)</FormLabel>
                     <FormControl>
-                        <Input type="number" {...field} onChange={e => field.onChange(Number(e.target.value))} />
+                        <Input type="number" step="0.01" {...field} data-testid="input-selling-price" />
                     </FormControl>
                     <FormMessage />
                     </FormItem>
@@ -265,7 +296,9 @@ function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (op
 
             <div className="pt-4 flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                <Button type="submit">Save Item</Button>
+                <Button type="submit" disabled={createItemMutation.isPending} data-testid="button-save-item">
+                  {createItemMutation.isPending ? "Saving..." : "Save Item"}
+                </Button>
             </div>
           </form>
         </Form>

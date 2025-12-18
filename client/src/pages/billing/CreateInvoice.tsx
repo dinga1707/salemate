@@ -1,8 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { db } from "@/services/storage";
-import { Item, Invoice, invoiceSchema } from "@/shared/schema";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,8 +16,14 @@ export default function CreateInvoice() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: items } = useQuery({ queryKey: ['items'], queryFn: () => db.getItems() });
-  const { data: invoices } = useQuery({ queryKey: ['invoices'], queryFn: () => db.getInvoices() });
+  const { data: items } = useQuery({ 
+    queryKey: ['items'], 
+    queryFn: () => api.items.list() 
+  });
+  const { data: invoices } = useQuery({ 
+    queryKey: ['invoices'], 
+    queryFn: () => api.invoices.list() 
+  });
 
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -28,7 +33,25 @@ export default function CreateInvoice() {
   // Auto-generate invoice number
   const nextInvoiceNum = `INV-${new Date().getFullYear()}-${(invoices?.length || 0) + 101}`;
 
-  const addItem = (item: Item) => {
+  const createInvoiceMutation = useMutation({
+    mutationFn: ({ invoice, lineItems }: { invoice: any, lineItems: any[] }) => 
+      api.invoices.create(invoice, lineItems),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      toast({ title: "Invoice Created", description: `Invoice ${nextInvoiceNum} saved successfully.` });
+      setLocation("/billing");
+    },
+    onError: (error: Error) => {
+      toast({ 
+        variant: "destructive",
+        title: "Error", 
+        description: error.message || "Failed to create invoice" 
+      });
+    }
+  });
+
+  const addItem = (item: any) => {
     const existing = selectedItems.find(i => i.itemId === item.id);
     if (existing) {
       updateQuantity(existing.id, existing.quantity + 1);
@@ -38,11 +61,11 @@ export default function CreateInvoice() {
         itemId: item.id,
         name: item.name,
         hsn: item.hsn,
-        gstPercent: item.gstPercent,
+        gstPercent: Number(item.gstPercent),
         quantity: 1,
-        unitPrice: item.sellingPrice,
+        unitPrice: Number(item.sellingPrice),
         discount: 0,
-        total: item.sellingPrice
+        total: Number(item.sellingPrice)
       }]);
     }
     setOpenCombobox(false);
@@ -73,35 +96,30 @@ export default function CreateInvoice() {
       return;
     }
 
-    const invoice: Invoice = {
-      id: crypto.randomUUID(),
+    const invoice = {
       invoiceNumber: nextInvoiceNum,
-      customerName,
-      customerPhone,
+      customerName: customerName || undefined,
+      customerPhone: customerPhone || undefined,
       date: new Date().toISOString(),
-      items: selectedItems,
-      subtotal,
-      taxTotal,
-      grandTotal,
-      status: "PAID",
-      type: "INVOICE"
+      subtotal: subtotal.toString(),
+      taxTotal: taxTotal.toString(),
+      grandTotal: grandTotal.toString(),
+      status: "PAID" as const,
+      type: "INVOICE" as const,
     };
 
-    db.saveInvoice(invoice);
-    
-    // Reduce stock
-    selectedItems.forEach(lineItem => {
-      const stockItem = items?.find(i => i.id === lineItem.itemId);
-      if (stockItem) {
-        db.saveItem({ ...stockItem, quantity: stockItem.quantity - lineItem.quantity });
-      }
-    });
+    const lineItems = selectedItems.map(item => ({
+      itemId: item.itemId,
+      name: item.name,
+      hsn: item.hsn,
+      gstPercent: item.gstPercent.toString(),
+      quantity: item.quantity,
+      unitPrice: item.unitPrice.toString(),
+      discount: item.discount.toString(),
+      total: item.total.toString(),
+    }));
 
-    queryClient.invalidateQueries({ queryKey: ['invoices'] });
-    queryClient.invalidateQueries({ queryKey: ['items'] });
-    
-    toast({ title: "Invoice Created", description: `Invoice ${nextInvoiceNum} saved successfully.` });
-    setLocation("/billing");
+    createInvoiceMutation.mutate({ invoice, lineItems });
   };
 
   return (
@@ -113,15 +131,14 @@ export default function CreateInvoice() {
         </div>
         <div className="flex items-center gap-2">
            <Button variant="outline" onClick={() => setLocation("/billing")}>Cancel</Button>
-           <Button onClick={handleSave} className="gap-2">
-             <Save className="h-4 w-4" /> Save Invoice
+           <Button onClick={handleSave} className="gap-2" disabled={createInvoiceMutation.isPending} data-testid="button-save-invoice">
+             <Save className="h-4 w-4" /> {createInvoiceMutation.isPending ? "Saving..." : "Save Invoice"}
            </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 space-y-6">
-          {/* Customer Details */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium uppercase text-muted-foreground">Customer Details</CardTitle>
@@ -129,22 +146,21 @@ export default function CreateInvoice() {
             <CardContent className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Customer Name</label>
-                <Input placeholder="Walk-in Customer" value={customerName} onChange={e => setCustomerName(e.target.value)} />
+                <Input placeholder="Walk-in Customer" value={customerName} onChange={e => setCustomerName(e.target.value)} data-testid="input-customer-name" />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Phone Number</label>
-                <Input placeholder="Optional" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
+                <Input placeholder="Optional" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} data-testid="input-customer-phone" />
               </div>
             </CardContent>
           </Card>
 
-          {/* Items Table */}
           <Card className="min-h-[400px] flex flex-col">
              <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <CardTitle className="text-sm font-medium uppercase text-muted-foreground">Items</CardTitle>
                <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" role="combobox" aria-expanded={openCombobox} className="w-[250px] justify-between">
+                  <Button variant="outline" size="sm" role="combobox" aria-expanded={openCombobox} className="w-[250px] justify-between" data-testid="button-add-item-to-invoice">
                     <Plus className="mr-2 h-4 w-4" /> Add Item...
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
@@ -183,7 +199,7 @@ export default function CreateInvoice() {
                 </TableHeader>
                 <TableBody>
                   {selectedItems.map((item) => (
-                    <TableRow key={item.id}>
+                    <TableRow key={item.id} data-testid={`row-line-item-${item.id}`}>
                       <TableCell>
                         <div className="font-medium">{item.name}</div>
                         <div className="text-xs text-muted-foreground">GST {item.gstPercent}%</div>
@@ -196,7 +212,7 @@ export default function CreateInvoice() {
                           <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.id, item.quantity + 1)}>+</Button>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-medium">₹{item.total}</TableCell>
+                      <TableCell className="text-right font-medium">₹{item.total.toFixed(2)}</TableCell>
                       <TableCell>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeItem(item.id)}>
                           <Trash2 className="h-4 w-4" />
@@ -217,7 +233,6 @@ export default function CreateInvoice() {
           </Card>
         </div>
 
-        {/* Totals Sidebar */}
         <div className="space-y-6">
           <Card>
             <CardHeader>
@@ -228,7 +243,7 @@ export default function CreateInvoice() {
             <CardContent className="space-y-4">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Invoice No.</span>
-                <span className="font-medium">{nextInvoiceNum}</span>
+                <span className="font-medium" data-testid="text-invoice-number">{nextInvoiceNum}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Date</span>
@@ -246,12 +261,12 @@ export default function CreateInvoice() {
               <div className="border-t my-4"></div>
               <div className="flex justify-between items-center">
                 <span className="font-bold text-lg">Total</span>
-                <span className="font-bold text-xl text-primary">₹{grandTotal.toFixed(2)}</span>
+                <span className="font-bold text-xl text-primary" data-testid="text-grand-total">₹{grandTotal.toFixed(2)}</span>
               </div>
             </CardContent>
             <CardFooter>
-              <Button className="w-full" size="lg" onClick={handleSave} disabled={selectedItems.length === 0}>
-                Confirm & Print
+              <Button className="w-full" size="lg" onClick={handleSave} disabled={selectedItems.length === 0 || createInvoiceMutation.isPending}>
+                {createInvoiceMutation.isPending ? "Processing..." : "Confirm & Print"}
               </Button>
             </CardFooter>
           </Card>

@@ -1,12 +1,15 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Package, FileText, ArrowRightLeft, Settings, PieChart, Store } from "lucide-react";
+import { LayoutDashboard, Package, FileText, ArrowRightLeft, Settings, PieChart } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { db } from "@/services/storage";
+import { api } from "@/lib/api";
 
 export default function Sidebar() {
   const [location] = useLocation();
-  const { data: store } = useQuery({ queryKey: ['store'], queryFn: () => db.getStoreProfile() });
+  const { data: store } = useQuery({ 
+    queryKey: ['store'], 
+    queryFn: () => api.store.get() 
+  });
 
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/" },
@@ -43,6 +46,7 @@ export default function Sidebar() {
                     ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 )}
+                data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
               >
                 <item.icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
                 {item.label}
@@ -58,7 +62,7 @@ export default function Sidebar() {
             {store?.plan?.substring(0, 1) || "F"}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{store?.plan} Plan</p>
+            <p className="text-sm font-medium truncate" data-testid="text-plan-name">{store?.plan} Plan</p>
             <p className="text-xs text-muted-foreground">Valid till Dec 2025</p>
           </div>
         </div>
