@@ -13,6 +13,7 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 import { startOfMonth, endOfMonth } from "date-fns";
+import { scanBillImage } from "./openai";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -278,6 +279,49 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating transfer:", error);
       res.status(400).json({ error: "Failed to update transfer" });
+    }
+  });
+
+  // ============ BILL SCANNING ============
+  
+  // Scan bill image and extract items
+  app.post("/api/scan-bill", async (req, res) => {
+    try {
+      const { image } = req.body;
+      
+      if (!image) {
+        return res.status(400).json({ error: "Image data is required" });
+      }
+
+      const result = await scanBillImage(image);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error scanning bill:", error);
+      res.status(500).json({ error: error.message || "Failed to scan bill" });
+    }
+  });
+
+  // Bulk create items from scanned bill
+  app.post("/api/items/bulk", async (req, res) => {
+    try {
+      const store = await storage.getOrCreateDefaultStore();
+      const { items } = req.body;
+      
+      if (!items || !Array.isArray(items)) {
+        return res.status(400).json({ error: "Items array is required" });
+      }
+
+      const createdItems = [];
+      for (const item of items) {
+        const validated = insertItemSchema.parse({ ...item, storeId: store.id });
+        const created = await storage.createItem(validated);
+        createdItems.push(created);
+      }
+
+      res.status(201).json(createdItems);
+    } catch (error) {
+      console.error("Error bulk creating items:", error);
+      res.status(400).json({ error: "Failed to create items" });
     }
   });
 

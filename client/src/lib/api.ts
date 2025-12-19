@@ -70,4 +70,16 @@ export const api = {
       body: JSON.stringify(data),
     }),
   },
+
+  // Bill Scanning
+  scanning: {
+    scanBill: (image: string) => fetchAPI('/api/scan-bill', {
+      method: 'POST',
+      body: JSON.stringify({ image }),
+    }),
+    bulkCreateItems: (items: any[]) => fetchAPI('/api/items/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    }),
+  },
 };

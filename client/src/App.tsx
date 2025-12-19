@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import AppShell from "@/components/layout/AppShell";
 import Home from "@/pages/dashboard/Home";
 import InventoryList from "@/pages/inventory/InventoryList";
+import ScanBill from "@/pages/inventory/ScanBill";
 import InvoiceList from "@/pages/billing/InvoiceList";
 import CreateInvoice from "@/pages/billing/CreateInvoice";
 import TransferList from "@/pages/transfers/TransferList";
@@ -17,6 +18,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/inventory" component={InventoryList} />
+        <Route path="/inventory/scan" component={ScanBill} />
         <Route path="/billing" component={InvoiceList} />
         <Route path="/billing/new" component={CreateInvoice} />
         <Route path="/transfers" component={TransferList} />

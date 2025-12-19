@@ -21,7 +21,8 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Plus, Search, QrCode } from "lucide-react";
+import { Plus, Search, QrCode, Camera } from "lucide-react";
+import { Link } from "wouter";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -62,7 +63,14 @@ export default function InventoryList() {
           <h1 className="text-3xl font-bold tracking-tight">Inventory</h1>
           <p className="text-muted-foreground mt-1">Manage stock, prices, and brands.</p>
         </div>
-        <AddItemSheet open={isOpen} onOpenChange={setIsOpen} />
+        <div className="flex gap-2">
+          <Link href="/inventory/scan">
+            <Button variant="outline" data-testid="button-scan-bill">
+              <Camera className="mr-2 h-4 w-4" /> Scan Bill
+            </Button>
+          </Link>
+          <AddItemSheet open={isOpen} onOpenChange={setIsOpen} />
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
