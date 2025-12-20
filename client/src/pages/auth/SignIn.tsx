@@ -174,8 +174,12 @@ export default function SignIn() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/10 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 w-12 h-12 bg-primary rounded-lg flex items-center justify-center">
-            <Store className="h-6 w-6 text-primary-foreground" />
+          <div className="mx-auto mb-4">
+            <img 
+              src="/attached_assets/Salemate_jenikal_logo_1766224648814.png" 
+              alt="Salemate" 
+              className="h-16 w-16 object-contain mx-auto"
+            />
           </div>
           <CardTitle className="text-2xl">Welcome back</CardTitle>
           <CardDescription>Sign in to your Salemate account</CardDescription>

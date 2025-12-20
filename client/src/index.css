@@ -48,84 +48,87 @@
 }
 
 :root {
-  /* Brand: Professional Navy/Blue with Fresh Accents */
-  --background: 210 20% 98%;
-  --foreground: 222 47% 11%;
+  /* Brand: Salemate Purple & Orange Theme */
+  --background: 270 10% 98%;
+  --foreground: 270 30% 15%;
 
   --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
+  --card-foreground: 270 30% 15%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 222 47% 11%;
+  --popover-foreground: 270 30% 15%;
 
-  /* Primary: Deep Royal Blue */
-  --primary: 221 83% 53%;
-  --primary-foreground: 210 40% 98%;
+  /* Primary: Salemate Purple */
+  --primary: 276 45% 43%;
+  --primary-foreground: 0 0% 100%;
 
-  /* Secondary: Soft Grayish Blue */
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222 47% 11.2%;
+  /* Secondary: Salemate Orange */
+  --secondary: 35 93% 55%;
+  --secondary-foreground: 0 0% 100%;
 
-  /* Muted: Neutral Slate */
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
+  /* Muted: Neutral with Purple tint */
+  --muted: 270 20% 95%;
+  --muted-foreground: 270 10% 45%;
 
-  /* Accent: Subtle Blue Highlight */
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222 47% 11.2%;
+  /* Accent: Salemate Cyan */
+  --accent: 195 100% 50%;
+  --accent-foreground: 0 0% 100%;
 
   /* Destructive: Soft Red */
   --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
+  --destructive-foreground: 0 0% 100%;
 
   /* Status Colors */
   --success: 142 76% 36%;
-  --success-foreground: 355 100% 100%;
+  --success-foreground: 0 0% 100%;
   
-  --warning: 38 92% 50%;
-  --warning-foreground: 48 96% 89%;
+  --warning: 35 93% 55%;
+  --warning-foreground: 0 0% 100%;
 
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 221 83% 53%;
+  --border: 270 20% 90%;
+  --input: 270 20% 90%;
+  --ring: 276 45% 43%;
 
   --radius: 0.5rem;
 }
 
 .dark {
-  --background: 222 47% 11%;
-  --foreground: 210 40% 98%;
+  --background: 276 30% 10%;
+  --foreground: 0 0% 98%;
 
-  --card: 222 47% 11%;
-  --card-foreground: 210 40% 98%;
+  --card: 276 25% 12%;
+  --card-foreground: 0 0% 98%;
 
-  --popover: 222 47% 11%;
-  --popover-foreground: 210 40% 98%;
+  --popover: 276 25% 12%;
+  --popover-foreground: 0 0% 98%;
 
-  --primary: 217 91% 60%;
-  --primary-foreground: 222 47% 11.2%;
+  /* Primary: Salemate Purple (lighter for dark mode) */
+  --primary: 276 60% 60%;
+  --primary-foreground: 0 0% 100%;
 
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
+  /* Secondary: Salemate Orange */
+  --secondary: 35 90% 50%;
+  --secondary-foreground: 0 0% 100%;
 
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
+  --muted: 276 20% 18%;
+  --muted-foreground: 270 10% 65%;
 
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
+  /* Accent: Salemate Cyan */
+  --accent: 195 100% 45%;
+  --accent-foreground: 0 0% 100%;
 
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
+  --destructive: 0 62.8% 45%;
+  --destructive-foreground: 0 0% 100%;
 
   --success: 142 70% 50%;
-  --success-foreground: 144 100% 10%;
+  --success-foreground: 0 0% 100%;
   
-  --warning: 48 96% 53%;
-  --warning-foreground: 38 92% 10%;
+  --warning: 35 90% 50%;
+  --warning-foreground: 0 0% 100%;
 
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 224.3 76.3% 48%;
+  --border: 276 20% 20%;
+  --input: 276 20% 20%;
+  --ring: 276 60% 60%;
 }
 
 @layer base {

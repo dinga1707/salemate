@@ -27,9 +27,11 @@ export default function Sidebar() {
     <div className="h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col fixed left-0 top-0 z-50">
       <div className="p-6 border-b border-sidebar-border">
         <div className="flex items-center gap-2 mb-1">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold">
-            S
-          </div>
+          <img 
+            src="/attached_assets/Salemate_jenikal_logo_1766224648814.png" 
+            alt="Salemate" 
+            className="h-8 w-8 object-contain"
+          />
           <span className="font-heading font-bold text-xl tracking-tight text-sidebar-foreground">Salemate</span>
         </div>
       </div>
