@@ -26,13 +26,29 @@ import { Link } from "wouter";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { z } from "zod";
+
+const UNIT_OPTIONS = [
+  { value: "nos", label: "Nos (Numbers)" },
+  { value: "pcs", label: "Pcs (Pieces)" },
+  { value: "kg", label: "Kg (Kilograms)" },
+  { value: "gm", label: "Gm (Grams)" },
+  { value: "ltr", label: "Ltr (Litres)" },
+  { value: "ml", label: "ML (Millilitres)" },
+  { value: "box", label: "Box" },
+  { value: "pack", label: "Pack" },
+  { value: "dozen", label: "Dozen" },
+  { value: "set", label: "Set" },
+  { value: "mtr", label: "Mtr (Metres)" },
+  { value: "ft", label: "Ft (Feet)" },
+];
 
 const itemFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
   brand: z.string().optional(),
   hsn: z.string().optional(),
-  unit: z.string().default("pcs"),
+  unit: z.string().default("nos"),
   gstPercent: z.coerce.number().min(0).max(100).default(0),
   costPrice: z.coerce.number().min(0),
   sellingPrice: z.coerce.number().min(0),
@@ -142,7 +158,7 @@ function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (op
       name: "",
       brand: "",
       hsn: "",
-      unit: "pcs",
+      unit: "nos",
       gstPercent: 0,
       costPrice: 0,
       sellingPrice: 0,
@@ -251,9 +267,20 @@ function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (op
                 render={({ field }) => (
                     <FormItem>
                     <FormLabel>Unit</FormLabel>
-                    <FormControl>
-                        <Input placeholder="pcs" {...field} />
-                    </FormControl>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-unit">
+                          <SelectValue placeholder="Select unit" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {UNIT_OPTIONS.map((unit) => (
+                          <SelectItem key={unit.value} value={unit.value}>
+                            {unit.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                     </FormItem>
                 )}
