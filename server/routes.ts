@@ -424,6 +424,8 @@ export async function registerRoutes(
       itemId: z.string().min(1),
       name: z.string().min(1),
       quantity: z.number().int().positive(),
+      unit: z.string().optional(),
+      sellingPrice: z.string().optional(),
     })).min(1, "At least one item is required"),
   });
 
@@ -521,11 +523,40 @@ export async function registerRoutes(
       if (status === "ACCEPTED") {
         const store = await getSessionStore(req);
         if (store && transfer.toStoreId === store.id) {
-          const items = await storage.getTransferLineItems(id);
-          for (const item of items) {
-            // In a real multi-store system, we'd add to receiver's inventory
-            // For now, we'll just log it
-            console.log(`Accepted transfer: ${item.name} x${item.quantity}`);
+          const transferItems = await storage.getTransferLineItems(id);
+          for (const item of transferItems) {
+            // Check if the item already exists in receiver's inventory by name
+            const existingItems = await storage.getItems(store.id);
+            const existingItem = existingItems.find((i: any) => i.name === item.name);
+            
+            if (existingItem) {
+              // Update quantity of existing item
+              await storage.updateItem(existingItem.id, {
+                quantity: Number(existingItem.quantity) + item.quantity,
+              });
+            } else {
+              // Create new item in receiver's inventory
+              // Get source item details if available
+              let sourceItem = null;
+              if (item.itemId) {
+                sourceItem = await storage.getItem(item.itemId);
+              }
+              
+              await storage.createItem({
+                storeId: store.id,
+                name: item.name,
+                brand: sourceItem?.brand || null,
+                hsn: sourceItem?.hsn || null,
+                unit: sourceItem?.unit || "pcs",
+                gstPercent: sourceItem?.gstPercent || "0",
+                costPrice: sourceItem?.costPrice || "0",
+                margin: sourceItem?.margin || "0",
+                sellingPrice: sourceItem?.sellingPrice || "0",
+                discount: sourceItem?.discount || "0",
+                quantity: item.quantity,
+                location: null,
+              });
+            }
           }
         }
       }

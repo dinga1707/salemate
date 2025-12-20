@@ -90,6 +90,8 @@ export const transferLineItems = pgTable("transfer_line_items", {
   itemId: varchar("item_id"),
   name: text("name").notNull(),
   quantity: integer("quantity").notNull(),
+  unit: text("unit").notNull().default("pcs"),
+  sellingPrice: decimal("selling_price", { precision: 10, scale: 2 }).notNull().default("0"),
 });
 
 // Zod Schemas for Insert/Validation

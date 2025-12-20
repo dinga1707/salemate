@@ -136,14 +136,29 @@ function TransferCard({ transfer, onAccept, onReject, isIncoming }: {
       <CardContent>
         <div className="bg-muted/30 p-3 rounded-md text-sm">
           <div className="font-medium mb-2">Items in transit:</div>
-          <ul className="space-y-1">
+          <ul className="space-y-2">
             {transfer.items?.map((item: any, idx: number) => (
-              <li key={idx} className="flex justify-between">
-                <span>{item.name}</span>
-                <span className="font-mono">x{item.quantity}</span>
+              <li key={idx} className="flex justify-between items-center">
+                <div>
+                  <span className="font-medium">{item.name}</span>
+                  <span className="text-muted-foreground ml-2">
+                    {item.quantity} {item.unit || 'pcs'}
+                  </span>
+                </div>
+                <span className="font-mono text-primary">
+                  ₹{(Number(item.sellingPrice || 0) * item.quantity).toFixed(2)}
+                </span>
               </li>
             ))}
           </ul>
+          <div className="border-t mt-3 pt-2 flex justify-between font-medium">
+            <span>Total Value:</span>
+            <span className="text-primary">
+              ₹{transfer.items?.reduce((sum: number, item: any) => 
+                sum + (Number(item.sellingPrice || 0) * item.quantity), 0
+              ).toFixed(2)}
+            </span>
+          </div>
         </div>
       </CardContent>
     </Card>

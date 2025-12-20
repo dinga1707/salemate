@@ -26,6 +26,7 @@ interface SelectedItem {
   quantity: number;
   maxQuantity: number;
   unit: string;
+  sellingPrice: string;
 }
 
 export default function CreateTransfer() {
@@ -100,6 +101,7 @@ export default function CreateTransfer() {
         quantity: 1,
         maxQuantity: Number(item.quantity),
         unit: item.unit,
+        sellingPrice: item.sellingPrice,
       }]);
     } else {
       setSelectedItems(prev => prev.filter(i => i.itemId !== item.id));
@@ -125,6 +127,8 @@ export default function CreateTransfer() {
       itemId: item.itemId,
       name: item.name,
       quantity: item.quantity,
+      unit: item.unit,
+      sellingPrice: item.sellingPrice,
     }));
 
     createTransferMutation.mutate({ transfer, lineItems });
