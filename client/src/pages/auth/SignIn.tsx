@@ -126,9 +126,17 @@ export default function SignIn() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Password</FormLabel>
+                      <FormLabel htmlFor="quick-password">Password</FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="Enter your password" {...field} data-testid="input-quick-password" autoFocus />
+                        <Input 
+                          {...field}
+                          id="quick-password"
+                          type="password" 
+                          placeholder="Enter your password" 
+                          autoComplete="current-password"
+                          data-testid="input-quick-password" 
+                          autoFocus
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
