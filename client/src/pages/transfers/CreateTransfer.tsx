@@ -23,10 +23,13 @@ interface FoundStore {
 interface SelectedItem {
   itemId: string;
   name: string;
+  hsn: string;
   quantity: number;
   maxQuantity: number;
   unit: string;
-  sellingPrice: string;
+  unitPrice: string;
+  discount: string;
+  gstPercent: string;
 }
 
 export default function CreateTransfer() {
@@ -98,10 +101,13 @@ export default function CreateTransfer() {
       setSelectedItems(prev => [...prev, {
         itemId: item.id,
         name: item.name,
+        hsn: item.hsn || "",
         quantity: 1,
         maxQuantity: Number(item.quantity),
         unit: item.unit,
-        sellingPrice: item.sellingPrice,
+        unitPrice: item.sellingPrice || "0",
+        discount: item.discount || "0",
+        gstPercent: item.gstPercent || "0",
       }]);
     } else {
       setSelectedItems(prev => prev.filter(i => i.itemId !== item.id));
@@ -116,6 +122,18 @@ export default function CreateTransfer() {
     ));
   };
 
+  const handlePriceChange = (itemId: string, unitPrice: string) => {
+    setSelectedItems(prev => prev.map(item => 
+      item.itemId === itemId ? { ...item, unitPrice } : item
+    ));
+  };
+
+  const handleDiscountChange = (itemId: string, discount: string) => {
+    setSelectedItems(prev => prev.map(item => 
+      item.itemId === itemId ? { ...item, discount } : item
+    ));
+  };
+
   const handleSubmit = () => {
     if (!selectedStore || selectedItems.length === 0 || !currentStore) return;
 
@@ -123,15 +141,32 @@ export default function CreateTransfer() {
       toStoreId: selectedStore.id,
     };
 
-    const lineItems = selectedItems.map(item => ({
-      itemId: item.itemId,
-      name: item.name,
-      quantity: item.quantity,
-      unit: item.unit,
-      sellingPrice: item.sellingPrice,
-    }));
+    const lineItems = selectedItems.map(item => {
+      const price = parseFloat(item.unitPrice) || 0;
+      const disc = parseFloat(item.discount) || 0;
+      const total = ((price - disc) * item.quantity).toFixed(2);
+      return {
+        itemId: item.itemId,
+        name: item.name,
+        hsn: item.hsn,
+        quantity: item.quantity,
+        unit: item.unit,
+        unitPrice: item.unitPrice,
+        discount: item.discount,
+        gstPercent: item.gstPercent,
+        total,
+      };
+    });
 
     createTransferMutation.mutate({ transfer, lineItems });
+  };
+
+  const calculateTotal = () => {
+    return selectedItems.reduce((sum, item) => {
+      const price = parseFloat(item.unitPrice) || 0;
+      const disc = parseFloat(item.discount) || 0;
+      return sum + (price - disc) * item.quantity;
+    }, 0);
   };
 
   const availableItems = myItems?.filter((item: any) => Number(item.quantity) > 0) || [];
@@ -260,7 +295,7 @@ export default function CreateTransfer() {
               </div>
             ) : (
               <>
-                <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                <div className="space-y-3 max-h-[500px] overflow-y-auto">
                   {availableItems.map((item: any) => {
                     const selected = selectedItems.find(i => i.itemId === item.id);
                     return (
@@ -277,24 +312,52 @@ export default function CreateTransfer() {
                           <div className="flex-1">
                             <p className="font-medium">{item.name}</p>
                             <p className="text-sm text-muted-foreground">
-                              Available: {item.quantity} {item.unit}
+                              Available: {item.quantity} {item.unit} | MRP: ₹{item.sellingPrice}
+                              {item.hsn && ` | HSN: ${item.hsn}`}
                             </p>
                           </div>
-                          {selected && (
-                            <div className="flex items-center gap-2">
-                              <Label className="text-sm">Qty:</Label>
+                        </div>
+                        {selected && (
+                          <div className="mt-3 pt-3 border-t grid grid-cols-4 gap-3">
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Qty</Label>
                               <Input
                                 type="number"
                                 min={1}
                                 max={item.quantity}
                                 value={selected.quantity}
                                 onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 1)}
-                                className="w-20"
                                 data-testid={`input-qty-${item.id}`}
                               />
                             </div>
-                          )}
-                        </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Price (₹)</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={selected.unitPrice}
+                                onChange={(e) => handlePriceChange(item.id, e.target.value)}
+                                data-testid={`input-price-${item.id}`}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Discount (₹)</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={selected.discount}
+                                onChange={(e) => handleDiscountChange(item.id, e.target.value)}
+                                data-testid={`input-discount-${item.id}`}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Total</Label>
+                              <div className="h-10 flex items-center font-mono text-primary">
+                                ₹{((parseFloat(selected.unitPrice) - parseFloat(selected.discount || "0")) * selected.quantity).toFixed(2)}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -345,15 +408,37 @@ export default function CreateTransfer() {
 
             <div className="space-y-2">
               <p className="font-medium">Items ({selectedItems.length})</p>
-              <div className="border rounded-lg divide-y">
-                {selectedItems.map((item) => (
-                  <div key={item.itemId} className="p-3 flex justify-between items-center">
-                    <span>{item.name}</span>
-                    <span className="font-mono text-sm">
-                      {item.quantity} {item.unit}
-                    </span>
-                  </div>
-                ))}
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left p-2">Item</th>
+                      <th className="text-right p-2">Qty</th>
+                      <th className="text-right p-2">Price</th>
+                      <th className="text-right p-2">Disc</th>
+                      <th className="text-right p-2">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {selectedItems.map((item) => {
+                      const itemTotal = (parseFloat(item.unitPrice) - parseFloat(item.discount || "0")) * item.quantity;
+                      return (
+                        <tr key={item.itemId}>
+                          <td className="p-2">{item.name}</td>
+                          <td className="p-2 text-right">{item.quantity} {item.unit}</td>
+                          <td className="p-2 text-right">₹{item.unitPrice}</td>
+                          <td className="p-2 text-right">₹{item.discount || "0"}</td>
+                          <td className="p-2 text-right font-mono font-medium">₹{itemTotal.toFixed(2)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex justify-end pt-2">
+                <div className="text-lg font-bold">
+                  Grand Total: <span className="text-primary">₹{calculateTotal().toFixed(2)}</span>
+                </div>
               </div>
             </div>
 

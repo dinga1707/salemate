@@ -13,6 +13,7 @@ import InvoiceList from "@/pages/billing/InvoiceList";
 import CreateInvoice from "@/pages/billing/CreateInvoice";
 import TransferList from "@/pages/transfers/TransferList";
 import CreateTransfer from "@/pages/transfers/CreateTransfer";
+import TransferInvoice from "@/pages/transfers/TransferInvoice";
 import Subscription from "@/pages/subscription/Subscription";
 import SignUp from "@/pages/auth/SignUp";
 import SignIn from "@/pages/auth/SignIn";
@@ -109,6 +110,13 @@ function Router() {
         <ProtectedRoute component={() => (
           <AppShell>
             <CreateTransfer />
+          </AppShell>
+        )} />
+      </Route>
+      <Route path="/transfers/:id/invoice">
+        <ProtectedRoute component={() => (
+          <AppShell>
+            <TransferInvoice />
           </AppShell>
         )} />
       </Route>
