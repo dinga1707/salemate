@@ -65,6 +65,23 @@ export const api = {
     search: (query: string) => fetchAPI(`/api/stores/search?q=${encodeURIComponent(query)}`),
   },
 
+  // Parties (Suppliers)
+  parties: {
+    list: () => fetchAPI('/api/parties'),
+    search: (query: string) => fetchAPI(`/api/parties/search?q=${encodeURIComponent(query)}`),
+    create: (data: any) => fetchAPI('/api/parties', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    update: (id: string, data: any) => fetchAPI(`/api/parties/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+    delete: (id: string) => fetchAPI(`/api/parties/${id}`, {
+      method: 'DELETE',
+    }),
+  },
+
   // Items
   items: {
     list: () => fetchAPI('/api/items'),

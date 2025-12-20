@@ -224,6 +224,79 @@ export async function registerRoutes(
     }
   });
 
+  // ============ PARTIES (SUPPLIERS) ============
+
+  // Get all parties for a store
+  app.get("/api/parties", async (req, res) => {
+    try {
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const parties = await storage.getParties(store.id);
+      res.json(parties);
+    } catch (error) {
+      console.error("Error fetching parties:", error);
+      res.status(500).json({ error: "Failed to fetch parties" });
+    }
+  });
+
+  // Search parties
+  app.get("/api/parties/search", async (req, res) => {
+    try {
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const query = req.query.q as string || "";
+      const parties = await storage.searchParties(store.id, query);
+      res.json(parties);
+    } catch (error) {
+      console.error("Error searching parties:", error);
+      res.status(500).json({ error: "Failed to search parties" });
+    }
+  });
+
+  // Create party
+  app.post("/api/parties", async (req, res) => {
+    try {
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const partyData = { ...req.body, storeId: store.id };
+      const party = await storage.createParty(partyData);
+      res.status(201).json(party);
+    } catch (error) {
+      console.error("Error creating party:", error);
+      res.status(400).json({ error: "Failed to create party" });
+    }
+  });
+
+  // Update party
+  app.patch("/api/parties/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updated = await storage.updateParty(id, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating party:", error);
+      res.status(400).json({ error: "Failed to update party" });
+    }
+  });
+
+  // Delete party
+  app.delete("/api/parties/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteParty(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting party:", error);
+      res.status(500).json({ error: "Failed to delete party" });
+    }
+  });
+
   // ============ ITEMS ============
   
   // Get all items for a store
