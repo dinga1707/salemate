@@ -28,7 +28,7 @@ export default function Sidebar() {
       <div className="p-6 border-b border-sidebar-border">
         <div className="flex items-center gap-2 mb-1">
           <img 
-            src="/attached_assets/Salemate_jenikal_logo_1766224648814.png" 
+            src="/assets/salemate-logo.png" 
             alt="Salemate" 
             className="h-8 w-8 object-contain"
           />

@@ -49,28 +49,28 @@
 
 :root {
   /* Brand: Salemate Purple & Orange Theme */
-  --background: 270 10% 98%;
-  --foreground: 270 30% 15%;
+  --background: 282 10% 98%;
+  --foreground: 282 30% 15%;
 
   --card: 0 0% 100%;
-  --card-foreground: 270 30% 15%;
+  --card-foreground: 282 30% 15%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 270 30% 15%;
+  --popover-foreground: 282 30% 15%;
 
-  /* Primary: Salemate Purple */
-  --primary: 276 45% 43%;
+  /* Primary: Salemate Purple #7B4397 */
+  --primary: 282 39% 43%;
   --primary-foreground: 0 0% 100%;
 
-  /* Secondary: Salemate Orange */
-  --secondary: 35 93% 55%;
+  /* Secondary: Salemate Orange #F7931E */
+  --secondary: 35 93% 54%;
   --secondary-foreground: 0 0% 100%;
 
   /* Muted: Neutral with Purple tint */
-  --muted: 270 20% 95%;
-  --muted-foreground: 270 10% 45%;
+  --muted: 282 20% 95%;
+  --muted-foreground: 282 10% 45%;
 
-  /* Accent: Salemate Cyan */
+  /* Accent: Salemate Cyan #00BFFF */
   --accent: 195 100% 50%;
   --accent-foreground: 0 0% 100%;
 
@@ -82,39 +82,39 @@
   --success: 142 76% 36%;
   --success-foreground: 0 0% 100%;
   
-  --warning: 35 93% 55%;
+  --warning: 35 93% 54%;
   --warning-foreground: 0 0% 100%;
 
-  --border: 270 20% 90%;
-  --input: 270 20% 90%;
-  --ring: 276 45% 43%;
+  --border: 282 20% 90%;
+  --input: 282 20% 90%;
+  --ring: 282 39% 43%;
 
   --radius: 0.5rem;
 }
 
 .dark {
-  --background: 276 30% 10%;
+  --background: 282 30% 10%;
   --foreground: 0 0% 98%;
 
-  --card: 276 25% 12%;
+  --card: 282 25% 12%;
   --card-foreground: 0 0% 98%;
 
-  --popover: 276 25% 12%;
+  --popover: 282 25% 12%;
   --popover-foreground: 0 0% 98%;
 
   /* Primary: Salemate Purple (lighter for dark mode) */
-  --primary: 276 60% 60%;
+  --primary: 282 50% 60%;
   --primary-foreground: 0 0% 100%;
 
   /* Secondary: Salemate Orange */
-  --secondary: 35 90% 50%;
+  --secondary: 35 93% 54%;
   --secondary-foreground: 0 0% 100%;
 
-  --muted: 276 20% 18%;
-  --muted-foreground: 270 10% 65%;
+  --muted: 282 20% 18%;
+  --muted-foreground: 282 10% 65%;
 
   /* Accent: Salemate Cyan */
-  --accent: 195 100% 45%;
+  --accent: 195 100% 50%;
   --accent-foreground: 0 0% 100%;
 
   --destructive: 0 62.8% 45%;
@@ -123,12 +123,12 @@
   --success: 142 70% 50%;
   --success-foreground: 0 0% 100%;
   
-  --warning: 35 90% 50%;
+  --warning: 35 93% 54%;
   --warning-foreground: 0 0% 100%;
 
-  --border: 276 20% 20%;
-  --input: 276 20% 20%;
-  --ring: 276 60% 60%;
+  --border: 282 20% 20%;
+  --input: 282 20% 20%;
+  --ring: 282 50% 60%;
 }
 
 @layer base {

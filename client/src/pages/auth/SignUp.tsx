@@ -87,7 +87,7 @@ export default function SignUp() {
         <CardHeader className="text-center">
           <div className="mx-auto mb-4">
             <img 
-              src="/attached_assets/Salemate_jenikal_logo_1766224648814.png" 
+              src="/assets/salemate-logo.png" 
               alt="Salemate" 
               className="h-16 w-16 object-contain mx-auto"
             />
