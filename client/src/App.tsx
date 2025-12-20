@@ -16,6 +16,7 @@ import TransferList from "@/pages/transfers/TransferList";
 import CreateTransfer from "@/pages/transfers/CreateTransfer";
 import TransferInvoice from "@/pages/transfers/TransferInvoice";
 import Subscription from "@/pages/subscription/Subscription";
+import Reports from "@/pages/reports/Reports";
 import SignUp from "@/pages/auth/SignUp";
 import SignIn from "@/pages/auth/SignIn";
 import { Loader2 } from "lucide-react";
@@ -132,6 +133,13 @@ function Router() {
         <ProtectedRoute component={() => (
           <AppShell>
             <Subscription />
+          </AppShell>
+        )} />
+      </Route>
+      <Route path="/reports">
+        <ProtectedRoute component={() => (
+          <AppShell>
+            <Reports />
           </AppShell>
         )} />
       </Route>
