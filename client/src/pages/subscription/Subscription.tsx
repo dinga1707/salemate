@@ -198,9 +198,12 @@ export default function Subscription() {
               ))}
             </ul>
           </CardContent>
-          <CardFooter>
-            <Button variant="outline" className="w-full" disabled>
-              {currentPlan === 'FREE' ? 'Current Plan' : 'Downgrade'}
+          <CardFooter className="flex gap-2">
+            {currentPlan === 'FREE' ? (
+              <Badge variant="secondary" className="flex-1 justify-center py-2">Current Plan</Badge>
+            ) : null}
+            <Button variant="outline" className="flex-1" disabled>
+              {currentPlan === 'FREE' ? 'Free Forever' : 'Downgrade'}
             </Button>
           </CardFooter>
         </Card>
@@ -253,9 +256,12 @@ export default function Subscription() {
                     ))}
                   </ul>
                 </CardContent>
-                <CardFooter>
+                <CardFooter className="flex gap-2">
+                  {isCurrentPlan ? (
+                    <Badge variant="secondary" className="flex-1 justify-center py-2">Current Plan</Badge>
+                  ) : null}
                   <Button
-                    className={`w-full ${planKey === 'PRO' ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
+                    className={`flex-1 ${planKey === 'PRO' ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
                     onClick={() => handleUpgrade(plan)}
                     disabled={isCurrentPlan || checkoutMutation.isPending}
                     data-testid={`button-upgrade-${planKey.toLowerCase()}`}
@@ -263,7 +269,7 @@ export default function Subscription() {
                     {checkoutMutation.isPending ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : null}
-                    {isCurrentPlan ? 'Current Plan' : 'Upgrade'}
+                    Upgrade
                   </Button>
                 </CardFooter>
               </Card>
