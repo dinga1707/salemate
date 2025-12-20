@@ -53,7 +53,8 @@ async function initStripe() {
   }
 }
 
-await initStripe();
+// Initialize Stripe in the main async block
+initStripe().catch(err => console.error('Stripe init error:', err));
 
 app.post(
   '/api/stripe/webhook',
