@@ -49,32 +49,78 @@ Salemate is an offline-first billing and stock management application designed f
 ## Getting Started
 
 ### Prerequisites
-- Node.js 18+
-- PostgreSQL database
+- Node.js 20+ (recommended) or Node.js 18+
+- PostgreSQL 14+ database
+- OpenAI API key (for bill scanning feature)
 
 ### Installation
 
-1. Clone the repository
-2. Install dependencies:
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/your-org/salemate.git
+   cd salemate
+   ```
+
+2. **Install dependencies**
    ```bash
    npm install
    ```
-3. Set up environment variables:
-   - `DATABASE_URL` - PostgreSQL connection string
-   - `OPENAI_API_KEY` - For AI bill scanning feature
-   - `SESSION_SECRET` - For session management (production)
 
-4. Push database schema:
+3. **Set up PostgreSQL database**
+   
+   Create a new database:
+   ```bash
+   createdb salemate
+   ```
+   
+   Or using psql:
+   ```sql
+   CREATE DATABASE salemate;
+   ```
+
+4. **Configure environment variables**
+   
+   Create a `.env` file in the project root:
+   ```env
+   DATABASE_URL=postgresql://username:password@localhost:5432/salemate
+   OPENAI_API_KEY=sk-your-openai-api-key
+   SESSION_SECRET=your-random-secret-key
+   ```
+   
+   Generate a secure session secret:
+   ```bash
+   openssl rand -hex 32
+   ```
+
+5. **Push database schema**
    ```bash
    npm run db:push
    ```
 
-5. Start the development server:
+6. **Start the development server**
    ```bash
    npm run dev
    ```
 
 The app will be available at `http://localhost:5000`
+
+### Available Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server with hot reload |
+| `npm run build` | Build for production |
+| `npm run db:push` | Push schema changes to database |
+
+### Troubleshooting
+
+**Database connection issues:**
+- Ensure PostgreSQL is running: `pg_isready`
+- Verify your DATABASE_URL format: `postgresql://user:password@host:port/database`
+
+**OpenAI API errors:**
+- Verify your API key is valid and has credits
+- Bill scanning requires GPT-4o model access
 
 ## Project Structure
 
