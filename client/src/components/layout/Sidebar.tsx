@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Package, FileText, ArrowRightLeft, Settings, PieChart, LogOut, Store } from "lucide-react";
+import { LayoutDashboard, Package, FileText, ArrowRightLeft, Settings, PieChart, LogOut, Store, CreditCard } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ export default function Sidebar() {
     { icon: Package, label: "Stock / Inventory", href: "/inventory" },
     { icon: FileText, label: "Billing", href: "/billing" },
     { icon: ArrowRightLeft, label: "Transfers", href: "/transfers" },
+    { icon: CreditCard, label: "Subscription", href: "/subscription" },
     { icon: PieChart, label: "Reports", href: "/reports" },
     { icon: Settings, label: "Settings", href: "/settings" },
   ];

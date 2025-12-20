@@ -620,5 +620,161 @@ export async function registerRoutes(
     }
   });
 
+  // ============ SUBSCRIPTION ============
+  
+  // Get subscription plans
+  app.get("/api/subscription/plans", async (req, res) => {
+    try {
+      const { sql } = await import('drizzle-orm');
+      
+      const result = await db.execute(sql`
+        SELECT 
+          p.id as product_id,
+          p.name as product_name,
+          p.description as product_description,
+          p.metadata as product_metadata,
+          pr.id as price_id,
+          pr.unit_amount,
+          pr.currency,
+          pr.recurring,
+          pr.metadata as price_metadata
+        FROM stripe.products p
+        LEFT JOIN stripe.prices pr ON pr.product = p.id AND pr.active = true
+        WHERE p.active = true
+        ORDER BY pr.unit_amount ASC
+      `);
+      
+      const productsMap = new Map();
+      for (const row of result.rows as any[]) {
+        if (!productsMap.has(row.product_id)) {
+          productsMap.set(row.product_id, {
+            id: row.product_id,
+            name: row.product_name,
+            description: row.product_description,
+            metadata: row.product_metadata,
+            prices: []
+          });
+        }
+        if (row.price_id) {
+          productsMap.get(row.product_id).prices.push({
+            id: row.price_id,
+            unit_amount: row.unit_amount,
+            currency: row.currency,
+            recurring: row.recurring,
+            metadata: row.price_metadata,
+          });
+        }
+      }
+      
+      res.json(Array.from(productsMap.values()));
+    } catch (error) {
+      console.error("Error fetching plans:", error);
+      res.status(500).json({ error: "Failed to fetch plans" });
+    }
+  });
+
+  // Create checkout session
+  app.post("/api/subscription/checkout", async (req, res) => {
+    try {
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { priceId } = req.body;
+      if (!priceId) {
+        return res.status(400).json({ error: "Price ID is required" });
+      }
+
+      const { getUncachableStripeClient } = await import('./stripeClient');
+      const stripe = await getUncachableStripeClient();
+
+      const session = await stripe.checkout.sessions.create({
+        mode: 'subscription',
+        payment_method_types: ['card'],
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: `${req.protocol}://${req.get('host')}/subscription?success=true`,
+        cancel_url: `${req.protocol}://${req.get('host')}/subscription?canceled=true`,
+        metadata: { storeId: store.id },
+        customer_email: store.email || undefined,
+        subscription_data: {
+          metadata: { storeId: store.id },
+        },
+      });
+
+      res.json({ url: session.url });
+    } catch (error) {
+      console.error("Error creating checkout:", error);
+      res.status(500).json({ error: "Failed to create checkout session" });
+    }
+  });
+
+  // Customer portal session
+  app.post("/api/subscription/portal", async (req, res) => {
+    try {
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { getUncachableStripeClient } = await import('./stripeClient');
+      const stripe = await getUncachableStripeClient();
+
+      const { sql } = await import('drizzle-orm');
+      const customerResult = await db.execute(sql`
+        SELECT id FROM stripe.customers 
+        WHERE metadata->>'storeId' = ${store.id}
+        LIMIT 1
+      `);
+
+      if (customerResult.rows.length === 0) {
+        return res.status(404).json({ error: "No subscription found" });
+      }
+
+      const session = await stripe.billingPortal.sessions.create({
+        customer: (customerResult.rows[0] as any).id,
+        return_url: `${req.protocol}://${req.get('host')}/subscription`,
+      });
+
+      res.json({ url: session.url });
+    } catch (error) {
+      console.error("Error creating portal session:", error);
+      res.status(500).json({ error: "Failed to create portal session" });
+    }
+  });
+
+  // Get current subscription
+  app.get("/api/subscription/current", async (req, res) => {
+    try {
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { sql } = await import('drizzle-orm');
+      const subscriptionResult = await db.execute(sql`
+        SELECT s.*, p.name as product_name, pr.unit_amount, pr.recurring
+        FROM stripe.subscriptions s
+        LEFT JOIN stripe.prices pr ON pr.id = s.items->0->>'price'
+        LEFT JOIN stripe.products p ON p.id = pr.product
+        WHERE s.metadata->>'storeId' = ${store.id}
+        AND s.status IN ('active', 'trialing')
+        LIMIT 1
+      `);
+
+      if (subscriptionResult.rows.length === 0) {
+        return res.json({ subscription: null, plan: store.plan });
+      }
+
+      res.json({ 
+        subscription: subscriptionResult.rows[0],
+        plan: store.plan 
+      });
+    } catch (error) {
+      console.error("Error fetching subscription:", error);
+      res.status(500).json({ error: "Failed to fetch subscription" });
+    }
+  });
+
   return httpServer;
 }

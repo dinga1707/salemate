@@ -116,4 +116,17 @@ export const api = {
       body: JSON.stringify({ items }),
     }),
   },
+
+  // Subscription
+  subscription: {
+    getPlans: () => fetchAPI('/api/subscription/plans'),
+    checkout: (priceId: string) => fetchAPI('/api/subscription/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ priceId }),
+    }),
+    portal: () => fetchAPI('/api/subscription/portal', {
+      method: 'POST',
+    }),
+    current: () => fetchAPI('/api/subscription/current'),
+  },
 };
