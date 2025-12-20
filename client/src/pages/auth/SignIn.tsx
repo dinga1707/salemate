@@ -124,18 +124,22 @@ export default function SignIn() {
                 <FormField
                   control={quickForm.control}
                   name="password"
-                  render={({ field }) => (
+                  render={({ field: { ref, ...fieldProps } }) => (
                     <FormItem>
                       <FormLabel htmlFor="quick-password">Password</FormLabel>
                       <FormControl>
                         <Input 
-                          {...field}
                           id="quick-password"
                           type="password" 
                           placeholder="Enter your password" 
                           autoComplete="current-password"
                           data-testid="input-quick-password" 
                           autoFocus
+                          name={fieldProps.name}
+                          value={fieldProps.value}
+                          onChange={fieldProps.onChange}
+                          onBlur={fieldProps.onBlur}
+                          ref={ref}
                         />
                       </FormControl>
                       <FormMessage />
