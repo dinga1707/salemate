@@ -9,13 +9,17 @@ export const transitStatusEnum = pgEnum("transit_status", ["PENDING", "ACCEPTED"
 export const invoiceStatusEnum = pgEnum("invoice_status", ["DRAFT", "PAID", "CANCELLED"]);
 export const invoiceTypeEnum = pgEnum("invoice_type", ["INVOICE", "PROFORMA"]);
 
-// Store Profile Table
+// Store Profile Table (with authentication fields)
 export const storeProfiles = pgTable("store_profiles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerName: text("owner_name").notNull(),
+  phone: text("phone").notNull().unique(),
+  password: text("password").notNull(),
   name: text("name").notNull(),
   gstin: text("gstin"),
+  email: text("email"),
   address: text("address"),
-  phone: text("phone"),
+  shopPhoto: text("shop_photo"),
   plan: subscriptionPlanEnum("plan").notNull().default("FREE"),
   templateId: text("template_id").notNull().default("default"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -92,6 +96,22 @@ export const transferLineItems = pgTable("transfer_line_items", {
 export const insertStoreProfileSchema = createInsertSchema(storeProfiles).omit({
   id: true,
   createdAt: true,
+});
+
+export const signupSchema = z.object({
+  ownerName: z.string().min(2, "Name must be at least 2 characters"),
+  phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  name: z.string().min(2, "Store name must be at least 2 characters"),
+  gstin: z.string().optional(),
+  email: z.string().email("Enter a valid email").optional().or(z.literal("")),
+  address: z.string().optional(),
+  shopPhoto: z.string().optional(),
+});
+
+export const signinSchema = z.object({
+  phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
+  password: z.string().min(1, "Password is required"),
 });
 
 export const insertItemSchema = createInsertSchema(items).omit({

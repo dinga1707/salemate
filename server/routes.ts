@@ -1,5 +1,7 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
+import session from "express-session";
+import bcrypt from "bcrypt";
 import { storage } from "./storage";
 import { 
   insertStoreProfileSchema,
@@ -8,6 +10,8 @@ import {
   insertInvoiceLineItemSchema,
   insertTransferRequestSchema,
   insertTransferLineItemSchema,
+  signupSchema,
+  signinSchema,
   type InsertInvoiceLineItem,
   type InsertTransferLineItem,
 } from "@shared/schema";
@@ -15,31 +19,183 @@ import { z } from "zod";
 import { startOfMonth, endOfMonth } from "date-fns";
 import { scanBillImage } from "./openai";
 
+declare module "express-session" {
+  interface SessionData {
+    storeId?: string;
+  }
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   
+  // Session middleware
+  const sessionSecret = process.env.SESSION_SECRET;
+  if (!sessionSecret && process.env.NODE_ENV === "production") {
+    throw new Error("SESSION_SECRET environment variable is required in production");
+  }
+  
+  app.use(session({
+    secret: sessionSecret || "dev-session-secret-only",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    }
+  }));
+
+  // ============ AUTHENTICATION ============
+
+  // Sign up
+  app.post("/api/auth/signup", async (req, res) => {
+    try {
+      const data = signupSchema.parse(req.body);
+      
+      // Check if phone already exists
+      const existing = await storage.getStoreByPhone(data.phone);
+      if (existing) {
+        return res.status(400).json({ error: "This mobile number is already registered" });
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(data.password, 10);
+
+      // Create store
+      const store = await storage.createStore({
+        ...data,
+        password: hashedPassword,
+        plan: "FREE",
+        templateId: "default",
+      });
+
+      // Set session
+      req.session.storeId = store.id;
+      
+      // Return store without password
+      const { password: _, ...storeWithoutPassword } = store;
+      res.status(201).json(storeWithoutPassword);
+    } catch (error: any) {
+      console.error("Signup error:", error);
+      if (error.errors) {
+        return res.status(400).json({ error: error.errors[0]?.message || "Validation failed" });
+      }
+      res.status(400).json({ error: error.message || "Failed to create account" });
+    }
+  });
+
+  // Sign in
+  app.post("/api/auth/signin", async (req, res) => {
+    try {
+      const data = signinSchema.parse(req.body);
+      
+      // Find store by phone
+      const store = await storage.getStoreByPhone(data.phone);
+      if (!store) {
+        return res.status(401).json({ error: "Invalid mobile number or password" });
+      }
+
+      // Verify password
+      const valid = await bcrypt.compare(data.password, store.password);
+      if (!valid) {
+        return res.status(401).json({ error: "Invalid mobile number or password" });
+      }
+
+      // Set session
+      req.session.storeId = store.id;
+      
+      // Return store without password
+      const { password: _, ...storeWithoutPassword } = store;
+      res.json(storeWithoutPassword);
+    } catch (error: any) {
+      console.error("Signin error:", error);
+      res.status(400).json({ error: error.message || "Failed to sign in" });
+    }
+  });
+
+  // Sign out
+  app.post("/api/auth/signout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Failed to sign out" });
+      }
+      res.json({ success: true });
+    });
+  });
+
+  // Get current session
+  app.get("/api/auth/me", async (req, res) => {
+    try {
+      if (!req.session.storeId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const store = await storage.getStoreProfile(req.session.storeId);
+      if (!store) {
+        req.session.destroy(() => {});
+        return res.status(401).json({ error: "Session expired" });
+      }
+
+      const { password: _, ...storeWithoutPassword } = store;
+      res.json(storeWithoutPassword);
+    } catch (error) {
+      console.error("Auth check error:", error);
+      res.status(500).json({ error: "Failed to check authentication" });
+    }
+  });
+  
   // ============ STORE PROFILE ============
   
-  // Get or create default store
+  // Get current store
   app.get("/api/store", async (req, res) => {
     try {
-      const store = await storage.getOrCreateDefaultStore();
-      res.json(store);
+      if (!req.session.storeId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const store = await storage.getStoreProfile(req.session.storeId);
+      if (!store) {
+        return res.status(404).json({ error: "Store not found" });
+      }
+      const { password: _, ...storeWithoutPassword } = store;
+      res.json(storeWithoutPassword);
     } catch (error) {
       console.error("Error fetching store:", error);
       res.status(500).json({ error: "Failed to fetch store profile" });
     }
   });
 
-  // Update store profile
+  // Helper to get store from session
+  const getSessionStore = async (req: Request) => {
+    if (!req.session.storeId) return null;
+    return storage.getStoreProfile(req.session.storeId);
+  };
+
+  // Update store profile (current user only)
   app.patch("/api/store/:id", async (req, res) => {
     try {
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
       const { id } = req.params;
-      const validated = insertStoreProfileSchema.partial().parse(req.body);
+      
+      // Only allow updating own store
+      if (store.id !== id) {
+        return res.status(403).json({ error: "You can only update your own store profile" });
+      }
+      
+      // Exclude password from updates (require separate password change flow)
+      const { password, ...updateData } = req.body;
+      
+      const updateSchema = insertStoreProfileSchema.partial().omit({ password: true });
+      const validated = updateSchema.parse(updateData);
+      
       const updated = await storage.updateStoreProfile(id, validated);
-      res.json(updated);
+      const { password: _, ...storeWithoutPassword } = updated;
+      res.json(storeWithoutPassword);
     } catch (error) {
       console.error("Error updating store:", error);
       res.status(400).json({ error: "Failed to update store profile" });
@@ -51,7 +207,10 @@ export async function registerRoutes(
   // Get all items for a store
   app.get("/api/items", async (req, res) => {
     try {
-      const store = await storage.getOrCreateDefaultStore();
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
       const items = await storage.getItems(store.id);
       res.json(items);
     } catch (error) {
@@ -78,7 +237,10 @@ export async function registerRoutes(
   // Create item
   app.post("/api/items", async (req, res) => {
     try {
-      const store = await storage.getOrCreateDefaultStore();
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
       const validated = insertItemSchema.parse({ ...req.body, storeId: store.id });
       const item = await storage.createItem(validated);
       res.status(201).json(item);
@@ -118,7 +280,10 @@ export async function registerRoutes(
   // Get all invoices for a store
   app.get("/api/invoices", async (req, res) => {
     try {
-      const store = await storage.getOrCreateDefaultStore();
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
       const invoices = await storage.getInvoices(store.id);
       
       // Include line items for each invoice
@@ -139,7 +304,10 @@ export async function registerRoutes(
   // Get invoices for current month (for entitlement check)
   app.get("/api/invoices/current-month", async (req, res) => {
     try {
-      const store = await storage.getOrCreateDefaultStore();
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
       const now = new Date();
       const start = startOfMonth(now);
       const end = endOfMonth(now);
@@ -159,7 +327,10 @@ export async function registerRoutes(
 
   app.post("/api/invoices", async (req, res) => {
     try {
-      const store = await storage.getOrCreateDefaultStore();
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
       const { invoice, lineItems } = createInvoiceSchema.parse(req.body);
       
       // Add storeId
@@ -193,7 +364,10 @@ export async function registerRoutes(
   // Get all transfers for a store
   app.get("/api/transfers", async (req, res) => {
     try {
-      const store = await storage.getOrCreateDefaultStore();
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
       const transfers = await storage.getTransfers(store.id);
       res.json(transfers);
     } catch (error) {
@@ -263,8 +437,8 @@ export async function registerRoutes(
       
       // If accepted by receiver, add items to their stock
       if (status === "ACCEPTED") {
-        const store = await storage.getOrCreateDefaultStore();
-        if (transfer.toStoreId === store.id) {
+        const store = await getSessionStore(req);
+        if (store && transfer.toStoreId === store.id) {
           const items = await storage.getTransferLineItems(id);
           for (const item of items) {
             // In a real multi-store system, we'd add to receiver's inventory
@@ -309,7 +483,10 @@ export async function registerRoutes(
   // Bulk create items from scanned bill
   app.post("/api/items/bulk", async (req, res) => {
     try {
-      const store = await storage.getOrCreateDefaultStore();
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
       const { items } = req.body;
       
       if (!items || !Array.isArray(items)) {

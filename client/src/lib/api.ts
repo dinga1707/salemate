@@ -3,6 +3,7 @@
 async function fetchAPI(url: string, options?: RequestInit) {
   const response = await fetch(url, {
     ...options,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...options?.headers,
@@ -21,7 +22,39 @@ async function fetchAPI(url: string, options?: RequestInit) {
   return response.json();
 }
 
+export interface SignupData {
+  ownerName: string;
+  phone: string;
+  password: string;
+  name: string;
+  gstin?: string;
+  email?: string;
+  address?: string;
+  shopPhoto?: string;
+}
+
+export interface SigninData {
+  phone: string;
+  password: string;
+}
+
 export const api = {
+  // Authentication
+  auth: {
+    signup: (data: SignupData) => fetchAPI('/api/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    signin: (data: SigninData) => fetchAPI('/api/auth/signin', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    signout: () => fetchAPI('/api/auth/signout', {
+      method: 'POST',
+    }),
+    me: () => fetchAPI('/api/auth/me'),
+  },
+
   // Store Profile
   store: {
     get: () => fetchAPI('/api/store'),

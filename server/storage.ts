@@ -22,6 +22,10 @@ import { db } from "./db";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 
 export interface IStorage {
+  // Authentication
+  getStoreByPhone(phone: string): Promise<StoreProfile | undefined>;
+  createStore(data: InsertStoreProfile): Promise<StoreProfile>;
+  
   // Store Profile
   getStoreProfile(id: string): Promise<StoreProfile | undefined>;
   getOrCreateDefaultStore(): Promise<StoreProfile>;
@@ -50,6 +54,17 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  // Authentication
+  async getStoreByPhone(phone: string): Promise<StoreProfile | undefined> {
+    const [store] = await db.select().from(storeProfiles).where(eq(storeProfiles.phone, phone));
+    return store || undefined;
+  }
+
+  async createStore(data: InsertStoreProfile): Promise<StoreProfile> {
+    const [newStore] = await db.insert(storeProfiles).values(data).returning();
+    return newStore;
+  }
+
   // Store Profile
   async getStoreProfile(id: string): Promise<StoreProfile | undefined> {
     const [store] = await db.select().from(storeProfiles).where(eq(storeProfiles.id, id));
@@ -62,16 +77,8 @@ export class DatabaseStorage implements IStorage {
       return stores[0];
     }
     
-    // Create default store
-    const [newStore] = await db
-      .insert(storeProfiles)
-      .values({
-        name: "My Store",
-        plan: "FREE",
-        templateId: "default",
-      })
-      .returning();
-    return newStore;
+    // This shouldn't be called anymore as stores are created through signup
+    throw new Error("No store found. Please sign up first.");
   }
 
   async updateStoreProfile(id: string, data: Partial<InsertStoreProfile>): Promise<StoreProfile> {
@@ -160,12 +167,7 @@ export class DatabaseStorage implements IStorage {
     const transfers = await db
       .select()
       .from(transferRequests)
-      .where(
-        and(
-          // Get transfers where this store is either sender or receiver
-          eq(transferRequests.fromStoreId, storeId)
-        )
-      )
+      .where(eq(transferRequests.fromStoreId, storeId))
       .orderBy(desc(transferRequests.createdAt));
 
     // Also get incoming transfers
