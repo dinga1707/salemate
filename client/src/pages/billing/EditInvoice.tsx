@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useState, useEffect } from "react";
+import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -14,17 +14,21 @@ import { Check, ChevronsUpDown, Trash2, Plus, Calculator, Save } from "lucide-re
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
-export default function CreateInvoice() {
+export default function EditInvoice() {
+  const params = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const { data: invoice, isLoading: invoiceLoading } = useQuery({
+    queryKey: ['invoice', params.id],
+    queryFn: () => api.invoices.get(params.id!),
+    enabled: !!params.id,
+  });
+
   const { data: items } = useQuery({ 
     queryKey: ['items'], 
     queryFn: () => api.items.list() 
-  });
-  const { data: invoices } = useQuery({ 
-    queryKey: ['invoices'], 
-    queryFn: () => api.invoices.list() 
   });
 
   const [customerName, setCustomerName] = useState("");
@@ -35,23 +39,43 @@ export default function CreateInvoice() {
   const [selectedItems, setSelectedItems] = useState<any[]>([]);
   const [openCombobox, setOpenCombobox] = useState(false);
 
-  // Auto-generate invoice number
-  const nextInvoiceNum = `INV-${new Date().getFullYear()}-${(invoices?.length || 0) + 101}`;
+  useEffect(() => {
+    if (invoice) {
+      setCustomerName(invoice.customerName || "");
+      setCustomerPhone(invoice.customerPhone || "");
+      setCustomerAddress(invoice.customerAddress || "");
+      setCustomerGstin(invoice.customerGstin || "");
+      setPaymentMethod(invoice.paymentMethod || "CASH");
+      if (invoice.items) {
+        setSelectedItems(invoice.items.map((item: any) => ({
+          id: item.id,
+          itemId: item.itemId,
+          name: item.name,
+          hsn: item.hsn,
+          gstPercent: Number(item.gstPercent),
+          quantity: item.quantity,
+          unitPrice: Number(item.unitPrice),
+          discount: Number(item.discount || 0),
+          total: Number(item.total)
+        })));
+      }
+    }
+  }, [invoice]);
 
-  const createInvoiceMutation = useMutation({
+  const updateInvoiceMutation = useMutation({
     mutationFn: ({ invoice, lineItems }: { invoice: any, lineItems: any[] }) => 
-      api.invoices.create(invoice, lineItems),
+      api.invoices.update(params.id!, invoice, lineItems),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['items'] });
-      toast({ title: "Invoice Created", description: `Invoice ${nextInvoiceNum} saved successfully.` });
+      toast({ title: "Invoice Updated", description: "Changes saved successfully." });
       setLocation("/billing");
     },
     onError: (error: Error) => {
       toast({ 
         variant: "destructive",
         title: "Error", 
-        description: error.message || "Failed to create invoice" 
+        description: error.message || "Failed to update invoice" 
       });
     }
   });
@@ -121,19 +145,15 @@ export default function CreateInvoice() {
       return;
     }
 
-    const invoice = {
-      invoiceNumber: nextInvoiceNum,
+    const invoiceData = {
       customerName: customerName || undefined,
       customerPhone: customerPhone || undefined,
       customerAddress: customerAddress || undefined,
       customerGstin: customerGstin || undefined,
       paymentMethod,
-      date: new Date().toISOString(),
       subtotal: subtotal.toString(),
       taxTotal: taxTotal.toString(),
       grandTotal: grandTotal.toString(),
-      status: "PAID" as const,
-      type: "INVOICE" as const,
     };
 
     const lineItems = selectedItems.map(item => ({
@@ -147,20 +167,36 @@ export default function CreateInvoice() {
       total: item.total.toString(),
     }));
 
-    createInvoiceMutation.mutate({ invoice, lineItems });
+    updateInvoiceMutation.mutate({ invoice: invoiceData, lineItems });
   };
+
+  if (invoiceLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-muted-foreground">Loading invoice...</div>
+      </div>
+    );
+  }
+
+  if (!invoice) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-destructive">Invoice not found</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">New Invoice</h1>
-          <p className="text-muted-foreground mt-1">Create a sale entry.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Edit Invoice</h1>
+          <p className="text-muted-foreground mt-1">Modify {invoice.invoiceNumber}</p>
         </div>
         <div className="flex items-center gap-2">
            <Button variant="outline" onClick={() => setLocation("/billing")}>Cancel</Button>
-           <Button onClick={handleSave} className="gap-2" disabled={createInvoiceMutation.isPending} data-testid="button-save-invoice">
-             <Save className="h-4 w-4" /> {createInvoiceMutation.isPending ? "Saving..." : "Save Invoice"}
+           <Button onClick={handleSave} className="gap-2" disabled={updateInvoiceMutation.isPending} data-testid="button-update-invoice">
+             <Save className="h-4 w-4" /> {updateInvoiceMutation.isPending ? "Saving..." : "Update Invoice"}
            </Button>
         </div>
       </div>
@@ -226,7 +262,7 @@ export default function CreateInvoice() {
                     <CommandList>
                       <CommandEmpty>No item found.</CommandEmpty>
                       <CommandGroup>
-                        {items?.map((item) => (
+                        {items?.map((item: any) => (
                           <CommandItem key={item.id} value={item.name} onSelect={() => addItem(item)}>
                             <Check className={cn("mr-2 h-4 w-4", selectedItems.some(i => i.itemId === item.id) ? "opacity-100" : "opacity-0")} />
                             <div className="flex flex-col">
@@ -316,11 +352,11 @@ export default function CreateInvoice() {
             <CardContent className="space-y-4">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Invoice No.</span>
-                <span className="font-medium" data-testid="text-invoice-number">{nextInvoiceNum}</span>
+                <span className="font-medium" data-testid="text-invoice-number">{invoice.invoiceNumber}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Date</span>
-                <span className="font-medium">{new Date().toLocaleDateString()}</span>
+                <span className="font-medium">{new Date(invoice.date).toLocaleDateString()}</span>
               </div>
               <div className="border-t my-4"></div>
               <div className="flex justify-between text-sm">
@@ -338,8 +374,8 @@ export default function CreateInvoice() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button className="w-full" size="lg" onClick={handleSave} disabled={selectedItems.length === 0 || createInvoiceMutation.isPending}>
-                {createInvoiceMutation.isPending ? "Processing..." : "Confirm & Print"}
+              <Button className="w-full" size="lg" onClick={handleSave} disabled={selectedItems.length === 0 || updateInvoiceMutation.isPending}>
+                {updateInvoiceMutation.isPending ? "Processing..." : "Save Changes"}
               </Button>
             </CardFooter>
           </Card>

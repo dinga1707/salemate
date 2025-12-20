@@ -1,20 +1,47 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, FileText } from "lucide-react";
-import { Link } from "wouter";
+import { Plus, FileText, Pencil, Trash2, MoreHorizontal } from "lucide-react";
+import { Link, useLocation } from "wouter";
 import { checkEntitlement } from "@/services/entitlements";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+
+const isWithinCurrentFY = (date: Date) => {
+  const now = new Date();
+  const currentFYStart = now.getMonth() >= 3 
+    ? new Date(now.getFullYear(), 3, 1) 
+    : new Date(now.getFullYear() - 1, 3, 1);
+  const currentFYEnd = now.getMonth() >= 3 
+    ? new Date(now.getFullYear() + 1, 2, 31) 
+    : new Date(now.getFullYear(), 2, 31);
+  return date >= currentFYStart && date <= currentFYEnd;
+};
 
 export default function InvoiceList() {
+  const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   const { data: invoices } = useQuery({ 
     queryKey: ['invoices'], 
     queryFn: () => api.invoices.list() 
   });
   const { toast } = useToast();
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.invoices.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      toast({ title: "Invoice Deleted", description: "The invoice has been deleted and stock restored." });
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    }
+  });
 
   const handleCreateClick = async (e: React.MouseEvent) => {
     try {
@@ -30,6 +57,10 @@ export default function InvoiceList() {
     } catch (error) {
       console.error("Error checking entitlement:", error);
     }
+  };
+
+  const handleEdit = (id: string) => {
+    setLocation(`/billing/edit/${id}`);
   };
 
   return (
@@ -78,7 +109,41 @@ export default function InvoiceList() {
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
-                   <Button variant="ghost" size="sm">Print</Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" data-testid={`button-actions-${inv.id}`}>
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleEdit(inv.id)} disabled={!isWithinCurrentFY(new Date(inv.date))}>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        {isWithinCurrentFY(new Date(inv.date)) ? "Edit" : "Edit (Locked - Previous FY)"}
+                      </DropdownMenuItem>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={!isWithinCurrentFY(new Date(inv.date))} className="text-destructive focus:text-destructive">
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            {isWithinCurrentFY(new Date(inv.date)) ? "Delete" : "Delete (Locked - Previous FY)"}
+                          </DropdownMenuItem>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Invoice?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete invoice {inv.invoiceNumber} and restore stock quantities. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => deleteMutation.mutate(inv.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                              Delete Invoice
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
               </TableRow>
             ))}

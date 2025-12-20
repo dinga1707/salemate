@@ -11,6 +11,7 @@ import InventoryList from "@/pages/inventory/InventoryList";
 import ScanBill from "@/pages/inventory/ScanBill";
 import InvoiceList from "@/pages/billing/InvoiceList";
 import CreateInvoice from "@/pages/billing/CreateInvoice";
+import EditInvoice from "@/pages/billing/EditInvoice";
 import TransferList from "@/pages/transfers/TransferList";
 import CreateTransfer from "@/pages/transfers/CreateTransfer";
 import TransferInvoice from "@/pages/transfers/TransferInvoice";
@@ -96,6 +97,13 @@ function Router() {
         <ProtectedRoute component={() => (
           <AppShell>
             <CreateInvoice />
+          </AppShell>
+        )} />
+      </Route>
+      <Route path="/billing/edit/:id">
+        <ProtectedRoute component={() => (
+          <AppShell>
+            <EditInvoice />
           </AppShell>
         )} />
       </Route>
