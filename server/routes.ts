@@ -262,7 +262,7 @@ export async function registerRoutes(
       if (!store) {
         return res.status(401).json({ error: "Not authenticated" });
       }
-      // Convert numeric fields to strings for database storage
+      // Convert decimal fields to strings for database storage (quantity is integer, stays as number)
       const body = {
         ...req.body,
         storeId: store.id,
@@ -270,7 +270,7 @@ export async function registerRoutes(
         costPrice: String(req.body.costPrice ?? "0"),
         margin: String(req.body.margin ?? "0"),
         sellingPrice: String(req.body.sellingPrice ?? "0"),
-        quantity: String(req.body.quantity ?? "0"),
+        quantity: Number(req.body.quantity ?? 0),
       };
       const validated = insertItemSchema.parse(body);
       const item = await storage.createItem(validated);
@@ -285,13 +285,13 @@ export async function registerRoutes(
   app.patch("/api/items/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      // Convert numeric fields to strings for database storage
+      // Convert decimal fields to strings for database storage (quantity is integer, stays as number)
       const body = { ...req.body };
       if (body.gstPercent !== undefined) body.gstPercent = String(body.gstPercent);
       if (body.costPrice !== undefined) body.costPrice = String(body.costPrice);
       if (body.margin !== undefined) body.margin = String(body.margin);
       if (body.sellingPrice !== undefined) body.sellingPrice = String(body.sellingPrice);
-      if (body.quantity !== undefined) body.quantity = String(body.quantity);
+      if (body.quantity !== undefined) body.quantity = Number(body.quantity);
       
       const validated = insertItemSchema.partial().parse(body);
       const updated = await storage.updateItem(id, validated);
