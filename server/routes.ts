@@ -361,8 +361,10 @@ export async function registerRoutes(
 
   // Create invoice
   const createInvoiceSchema = z.object({
-    invoice: insertInvoiceSchema,
-    lineItems: z.array(insertInvoiceLineItemSchema),
+    invoice: insertInvoiceSchema.omit({ storeId: true }).extend({
+      date: z.string().or(z.date()).transform(val => typeof val === 'string' ? new Date(val) : val),
+    }),
+    lineItems: z.array(insertInvoiceLineItemSchema.omit({ invoiceId: true })),
   });
 
   app.post("/api/invoices", async (req, res) => {
