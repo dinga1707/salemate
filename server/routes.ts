@@ -575,13 +575,13 @@ export async function registerRoutes(
     lineItems: z.array(z.object({
       itemId: z.string().min(1),
       name: z.string().min(1),
-      hsn: z.string().optional(),
+      hsn: z.string().optional().transform(v => v || null),
       quantity: z.number().int().positive(),
       unit: z.string().optional(),
-      unitPrice: z.string().optional(),
-      discount: z.string().optional(),
-      gstPercent: z.string().optional(),
-      total: z.string().optional(),
+      unitPrice: z.string().optional().transform(v => v || "0"),
+      discount: z.string().optional().transform(v => v || "0"),
+      gstPercent: z.string().optional().transform(v => v || "0"),
+      total: z.string().optional().transform(v => v || "0"),
     })).min(1, "At least one item is required"),
   });
 
