@@ -52,7 +52,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signinMutation = useMutation({
     mutationFn: (data: SigninData) => api.auth.signin(data),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // Save last logged-in user info to localStorage for quick login
+      if (data) {
+        localStorage.setItem("lastUser", JSON.stringify({
+          phone: data.phone,
+          name: data.ownerName || data.name,
+          shopPhoto: data.shopPhoto,
+        }));
+      }
       queryClient.invalidateQueries({ queryKey: ["auth"] });
     },
   });
