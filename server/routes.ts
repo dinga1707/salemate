@@ -37,6 +37,11 @@ export async function registerRoutes(
     throw new Error("SESSION_SECRET environment variable is required in production");
   }
   
+  // Trust proxy for Replit deployments (HTTPS termination at proxy)
+  if (process.env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+  }
+  
   app.use(session({
     secret: sessionSecret || "dev-session-secret-only",
     resave: false,
@@ -44,6 +49,7 @@ export async function registerRoutes(
     cookie: {
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     }
   }));
