@@ -262,7 +262,17 @@ export async function registerRoutes(
       if (!store) {
         return res.status(401).json({ error: "Not authenticated" });
       }
-      const validated = insertItemSchema.parse({ ...req.body, storeId: store.id });
+      // Convert numeric fields to strings for database storage
+      const body = {
+        ...req.body,
+        storeId: store.id,
+        gstPercent: String(req.body.gstPercent ?? "0"),
+        costPrice: String(req.body.costPrice ?? "0"),
+        margin: String(req.body.margin ?? "0"),
+        sellingPrice: String(req.body.sellingPrice ?? "0"),
+        quantity: String(req.body.quantity ?? "0"),
+      };
+      const validated = insertItemSchema.parse(body);
       const item = await storage.createItem(validated);
       res.status(201).json(item);
     } catch (error) {
@@ -275,7 +285,15 @@ export async function registerRoutes(
   app.patch("/api/items/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const validated = insertItemSchema.partial().parse(req.body);
+      // Convert numeric fields to strings for database storage
+      const body = { ...req.body };
+      if (body.gstPercent !== undefined) body.gstPercent = String(body.gstPercent);
+      if (body.costPrice !== undefined) body.costPrice = String(body.costPrice);
+      if (body.margin !== undefined) body.margin = String(body.margin);
+      if (body.sellingPrice !== undefined) body.sellingPrice = String(body.sellingPrice);
+      if (body.quantity !== undefined) body.quantity = String(body.quantity);
+      
+      const validated = insertItemSchema.partial().parse(body);
       const updated = await storage.updateItem(id, validated);
       res.json(updated);
     } catch (error) {
