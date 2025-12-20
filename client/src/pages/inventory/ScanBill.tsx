@@ -47,6 +47,7 @@ export default function ScanBill() {
   const [scannedItems, setScannedItems] = useState<ScannedItem[]>([]);
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
+  const [createdPartyId, setCreatedPartyId] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -248,7 +249,7 @@ export default function ScanBill() {
     setScannedItems(items => items.filter((_, i) => i !== index));
   };
 
-  const handleSaveItems = () => {
+  const handleSaveItems = async () => {
     const selectedItems = scannedItems
       .filter(item => item.selected)
       .map(({ selected, ...item }) => item);
@@ -258,7 +259,45 @@ export default function ScanBill() {
       return;
     }
 
-    saveItemsMutation.mutate(selectedItems);
+    let partyId = createdPartyId;
+    
+    // Create party from vendor name if not already created
+    if (!partyId && scanResult?.vendorName) {
+      try {
+        // First try to find existing party with same name
+        const existingParties = await api.parties.search(scanResult.vendorName);
+        const existingParty = existingParties.find(
+          (p: { name: string }) => p.name.toLowerCase() === scanResult.vendorName?.toLowerCase()
+        );
+        
+        if (existingParty) {
+          partyId = existingParty.id;
+          setCreatedPartyId(existingParty.id);
+        } else {
+          // Create new party
+          const party = await api.parties.create({ name: scanResult.vendorName });
+          partyId = party.id;
+          setCreatedPartyId(party.id);
+          queryClient.invalidateQueries({ queryKey: ['parties'] });
+          toast({ title: "Party Created", description: `Supplier "${scanResult.vendorName}" has been added.` });
+        }
+      } catch (error: any) {
+        console.error("Failed to create party:", error);
+        toast({ 
+          variant: "destructive", 
+          title: "Party Creation Failed", 
+          description: error.message || "Items will be added without party linkage." 
+        });
+      }
+    }
+
+    // Add partyId to items if available
+    const itemsWithParty = selectedItems.map(item => ({
+      ...item,
+      partyId: partyId || undefined,
+    }));
+
+    saveItemsMutation.mutate(itemsWithParty);
   };
 
   const selectedCount = scannedItems.filter(i => i.selected).length;
@@ -412,8 +451,8 @@ export default function ScanBill() {
             <CardContent className="space-y-3">
               {scanResult.vendorName && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Vendor</span>
-                  <span className="font-medium">{scanResult.vendorName}</span>
+                  <span className="text-muted-foreground">Party (Supplier)</span>
+                  <span className="font-medium" data-testid="text-scanned-party">{scanResult.vendorName}</span>
                 </div>
               )}
               {scanResult.invoiceNumber && (

@@ -55,21 +55,52 @@ const itemFormSchema = z.object({
   margin: z.coerce.number().min(0).default(0),
   quantity: z.coerce.number().int().min(0).default(0),
   location: z.string().optional(),
+  partyId: z.string().optional(),
 });
 
 type ItemFormData = z.infer<typeof itemFormSchema>;
 
+interface Party {
+  id: string;
+  name: string;
+  gstin?: string;
+  phone?: string;
+  address?: string;
+}
+
+interface Item {
+  id: string;
+  name: string;
+  brand?: string | null;
+  partyId?: string | null;
+  unit: string;
+  quantity: number;
+  costPrice: string;
+  sellingPrice: string;
+}
+
 export default function InventoryList() {
-  const { data: items } = useQuery({ 
+  const { data: items } = useQuery<Item[]>({ 
     queryKey: ['items'], 
     queryFn: () => api.items.list() 
+  });
+  const { data: parties } = useQuery<Party[]>({ 
+    queryKey: ['parties'], 
+    queryFn: () => api.parties.list() 
   });
   const [search, setSearch] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
+  const getPartyName = (partyId?: string | null) => {
+    if (!partyId) return "-";
+    const party = parties?.find(p => p.id === partyId);
+    return party?.name || "-";
+  };
+
   const filteredItems = items?.filter(i => 
     i.name.toLowerCase().includes(search.toLowerCase()) || 
-    i.brand?.toLowerCase().includes(search.toLowerCase())
+    i.brand?.toLowerCase().includes(search.toLowerCase()) ||
+    getPartyName(i.partyId).toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -110,6 +141,7 @@ export default function InventoryList() {
           <TableHeader>
             <TableRow>
               <TableHead>Item Name</TableHead>
+              <TableHead>Party (Supplier)</TableHead>
               <TableHead>Brand</TableHead>
               <TableHead>Stock</TableHead>
               <TableHead>Cost Price</TableHead>
@@ -121,6 +153,7 @@ export default function InventoryList() {
             {filteredItems?.map((item) => (
               <TableRow key={item.id} data-testid={`row-item-${item.id}`}>
                 <TableCell className="font-medium">{item.name}</TableCell>
+                <TableCell data-testid={`text-party-${item.id}`}>{getPartyName(item.partyId)}</TableCell>
                 <TableCell>{item.brand || "-"}</TableCell>
                 <TableCell>{item.quantity} {item.unit}</TableCell>
                 <TableCell>₹{Number(item.costPrice).toFixed(2)}</TableCell>
@@ -136,7 +169,7 @@ export default function InventoryList() {
             ))}
             {filteredItems?.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         No items found. Add some stock!
                     </TableCell>
                 </TableRow>
@@ -151,6 +184,32 @@ export default function InventoryList() {
 function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [partySearch, setPartySearch] = useState("");
+  const [showNewParty, setShowNewParty] = useState(false);
+  const [newPartyName, setNewPartyName] = useState("");
+  
+  const { data: parties } = useQuery<Party[]>({ 
+    queryKey: ['parties'], 
+    queryFn: () => api.parties.list() 
+  });
+
+  const createPartyMutation = useMutation({
+    mutationFn: (data: { name: string }) => api.parties.create(data),
+    onSuccess: (newParty) => {
+      queryClient.invalidateQueries({ queryKey: ['parties'] });
+      form.setValue('partyId', newParty.id);
+      setShowNewParty(false);
+      setNewPartyName("");
+      toast({ title: "Party Added", description: "New supplier has been added." });
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to create party" });
+    },
+  });
+
+  const filteredParties = parties?.filter(p => 
+    p.name.toLowerCase().includes(partySearch.toLowerCase())
+  ) || [];
   
   const form = useForm<ItemFormData>({
     resolver: zodResolver(itemFormSchema),
@@ -165,6 +224,7 @@ function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (op
       margin: 0,
       quantity: 0,
       location: "",
+      partyId: "",
     }
   });
 
@@ -172,9 +232,13 @@ function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (op
     mutationFn: (data: ItemFormData) => api.items.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['items'] });
+      queryClient.invalidateQueries({ queryKey: ['parties'] });
       toast({ title: "Item Added", description: "Item has been added to inventory." });
       onOpenChange(false);
       form.reset();
+      setPartySearch("");
+      setShowNewParty(false);
+      setNewPartyName("");
     },
     onError: (error: Error) => {
       toast({ 
@@ -218,6 +282,70 @@ function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (op
                 </FormItem>
               )}
             />
+            
+            <FormField
+              control={form.control}
+              name="partyId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Party (Supplier)</FormLabel>
+                  {showNewParty ? (
+                    <div className="flex gap-2">
+                      <Input 
+                        placeholder="Enter new party name" 
+                        value={newPartyName}
+                        onChange={(e) => setNewPartyName(e.target.value)}
+                        data-testid="input-new-party"
+                      />
+                      <Button 
+                        type="button" 
+                        size="sm"
+                        onClick={() => createPartyMutation.mutate({ name: newPartyName })}
+                        disabled={!newPartyName.trim() || createPartyMutation.isPending}
+                      >
+                        Add
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setShowNewParty(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-party">
+                            <SelectValue placeholder="Select party (supplier)" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <div className="p-2">
+                            <Input 
+                              placeholder="Search party..." 
+                              value={partySearch}
+                              onChange={(e) => setPartySearch(e.target.value)}
+                              className="mb-2"
+                            />
+                          </div>
+                          {filteredParties.length === 0 && partySearch && (
+                            <div className="p-2 text-sm text-muted-foreground">No parties found</div>
+                          )}
+                          {filteredParties.map((party) => (
+                            <SelectItem key={party.id} value={party.id}>
+                              {party.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setShowNewParty(true)}>
+                        + Add new party
+                      </Button>
+                    </div>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <div className="grid grid-cols-2 gap-4">
                 <FormField
                 control={form.control}
