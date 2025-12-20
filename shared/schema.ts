@@ -8,6 +8,7 @@ export const subscriptionPlanEnum = pgEnum("subscription_plan", ["FREE", "BASIC"
 export const transitStatusEnum = pgEnum("transit_status", ["PENDING", "ACCEPTED", "REJECTED", "REVERTED", "RETURNED"]);
 export const invoiceStatusEnum = pgEnum("invoice_status", ["DRAFT", "PAID", "CANCELLED"]);
 export const invoiceTypeEnum = pgEnum("invoice_type", ["INVOICE", "PROFORMA"]);
+export const paymentMethodEnum = pgEnum("payment_method", ["CASH", "UPI", "BANK_TRANSFER", "CHEQUE", "CREDIT"]);
 
 // Store Profile Table (with authentication fields)
 export const storeProfiles = pgTable("store_profiles", {
@@ -50,15 +51,19 @@ export const invoices = pgTable("invoices", {
   invoiceNumber: text("invoice_number").notNull().unique(),
   customerName: text("customer_name"),
   customerPhone: text("customer_phone"),
+  customerAddress: text("customer_address"),
+  customerGstin: text("customer_gstin"),
   customerStoreId: varchar("customer_store_id"),
   transferId: varchar("transfer_id"),
   date: timestamp("date").notNull().defaultNow(),
   subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
   taxTotal: decimal("tax_total", { precision: 10, scale: 2 }).notNull(),
   grandTotal: decimal("grand_total", { precision: 10, scale: 2 }).notNull(),
+  paymentMethod: paymentMethodEnum("payment_method").default("CASH"),
   status: invoiceStatusEnum("status").notNull().default("PAID"),
   type: invoiceTypeEnum("type").notNull().default("INVOICE"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // Invoice Line Items Table

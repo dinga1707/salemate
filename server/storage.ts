@@ -42,6 +42,8 @@ export interface IStorage {
   getInvoices(storeId: string): Promise<Invoice[]>;
   getInvoice(id: string): Promise<Invoice | undefined>;
   createInvoice(invoice: InsertInvoice, lineItems: InsertInvoiceLineItem[]): Promise<Invoice>;
+  updateInvoice(id: string, invoice: Partial<InsertInvoice>, lineItems?: InsertInvoiceLineItem[]): Promise<Invoice>;
+  deleteInvoice(id: string): Promise<void>;
   getInvoiceLineItems(invoiceId: string): Promise<InvoiceLineItem[]>;
   getInvoicesInDateRange(storeId: string, start: Date, end: Date): Promise<Invoice[]>;
 
@@ -146,6 +148,31 @@ export class DatabaseStorage implements IStorage {
     }
     
     return newInvoice;
+  }
+
+  async updateInvoice(id: string, invoice: Partial<InsertInvoice>, lineItems?: InsertInvoiceLineItem[]): Promise<Invoice> {
+    const [updated] = await db
+      .update(invoices)
+      .set({ ...invoice, updatedAt: new Date() })
+      .where(eq(invoices.id, id))
+      .returning();
+    
+    // If line items provided, replace existing ones
+    if (lineItems) {
+      await db.delete(invoiceLineItems).where(eq(invoiceLineItems.invoiceId, id));
+      if (lineItems.length > 0) {
+        await db.insert(invoiceLineItems).values(
+          lineItems.map(item => ({ ...item, invoiceId: id }))
+        );
+      }
+    }
+    
+    return updated;
+  }
+
+  async deleteInvoice(id: string): Promise<void> {
+    // Line items are deleted automatically via cascade
+    await db.delete(invoices).where(eq(invoices.id, id));
   }
 
   async getInvoiceLineItems(invoiceId: string): Promise<InvoiceLineItem[]> {

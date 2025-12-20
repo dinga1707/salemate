@@ -85,10 +85,18 @@ export const api = {
   // Invoices
   invoices: {
     list: () => fetchAPI('/api/invoices'),
+    get: (id: string) => fetchAPI(`/api/invoices/${id}`),
     currentMonth: () => fetchAPI('/api/invoices/current-month'),
     create: (invoice: any, lineItems: any[]) => fetchAPI('/api/invoices', {
       method: 'POST',
       body: JSON.stringify({ invoice, lineItems }),
+    }),
+    update: (id: string, invoice: any, lineItems?: any[]) => fetchAPI(`/api/invoices/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ invoice, lineItems }),
+    }),
+    delete: (id: string) => fetchAPI(`/api/invoices/${id}`, {
+      method: 'DELETE',
     }),
   },
 

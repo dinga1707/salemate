@@ -399,6 +399,155 @@ export async function registerRoutes(
     }
   });
 
+  // Get single invoice
+  app.get("/api/invoices/:id", async (req, res) => {
+    try {
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const { id } = req.params;
+      const invoice = await storage.getInvoice(id);
+      
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      
+      if (invoice.storeId !== store.id) {
+        return res.status(403).json({ error: "Not authorized to view this invoice" });
+      }
+      
+      const items = await storage.getInvoiceLineItems(invoice.id);
+      res.json({ ...invoice, items });
+    } catch (error) {
+      console.error("Error fetching invoice:", error);
+      res.status(500).json({ error: "Failed to fetch invoice" });
+    }
+  });
+
+  // Update invoice
+  app.patch("/api/invoices/:id", async (req, res) => {
+    try {
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const { id } = req.params;
+      const invoice = await storage.getInvoice(id);
+      
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      
+      if (invoice.storeId !== store.id) {
+        return res.status(403).json({ error: "Not authorized to update this invoice" });
+      }
+      
+      // Check if invoice is within current FY (April to March)
+      const invoiceDate = new Date(invoice.date);
+      const now = new Date();
+      const currentFYStart = now.getMonth() >= 3 
+        ? new Date(now.getFullYear(), 3, 1) 
+        : new Date(now.getFullYear() - 1, 3, 1);
+      const currentFYEnd = now.getMonth() >= 3 
+        ? new Date(now.getFullYear() + 1, 2, 31) 
+        : new Date(now.getFullYear(), 2, 31);
+      
+      if (invoiceDate < currentFYStart || invoiceDate > currentFYEnd) {
+        return res.status(400).json({ error: "Cannot edit invoices from previous financial years" });
+      }
+      
+      const { invoice: invoiceData, lineItems } = req.body;
+      
+      // Restore stock from old line items if updating items
+      if (lineItems) {
+        const oldItems = await storage.getInvoiceLineItems(id);
+        for (const item of oldItems) {
+          if (item.itemId) {
+            const stockItem = await storage.getItem(item.itemId);
+            if (stockItem) {
+              await storage.updateItem(item.itemId, {
+                quantity: Number(stockItem.quantity) + item.quantity,
+              });
+            }
+          }
+        }
+        
+        // Deduct new items from stock
+        for (const item of lineItems) {
+          if (item.itemId) {
+            const stockItem = await storage.getItem(item.itemId);
+            if (stockItem) {
+              await storage.updateItem(item.itemId, {
+                quantity: Number(stockItem.quantity) - item.quantity,
+              });
+            }
+          }
+        }
+      }
+      
+      const updated = await storage.updateInvoice(id, invoiceData, lineItems);
+      const items = await storage.getInvoiceLineItems(updated.id);
+      res.json({ ...updated, items });
+    } catch (error) {
+      console.error("Error updating invoice:", error);
+      res.status(400).json({ error: "Failed to update invoice" });
+    }
+  });
+
+  // Delete invoice
+  app.delete("/api/invoices/:id", async (req, res) => {
+    try {
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const { id } = req.params;
+      const invoice = await storage.getInvoice(id);
+      
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      
+      if (invoice.storeId !== store.id) {
+        return res.status(403).json({ error: "Not authorized to delete this invoice" });
+      }
+      
+      // Check if invoice is within current FY (April to March)
+      const invoiceDate = new Date(invoice.date);
+      const now = new Date();
+      const currentFYStart = now.getMonth() >= 3 
+        ? new Date(now.getFullYear(), 3, 1) 
+        : new Date(now.getFullYear() - 1, 3, 1);
+      const currentFYEnd = now.getMonth() >= 3 
+        ? new Date(now.getFullYear() + 1, 2, 31) 
+        : new Date(now.getFullYear(), 2, 31);
+      
+      if (invoiceDate < currentFYStart || invoiceDate > currentFYEnd) {
+        return res.status(400).json({ error: "Cannot delete invoices from previous financial years" });
+      }
+      
+      // Restore stock from invoice items
+      const invoiceItems = await storage.getInvoiceLineItems(id);
+      for (const item of invoiceItems) {
+        if (item.itemId) {
+          const stockItem = await storage.getItem(item.itemId);
+          if (stockItem) {
+            await storage.updateItem(item.itemId, {
+              quantity: Number(stockItem.quantity) + item.quantity,
+            });
+          }
+        }
+      }
+      
+      await storage.deleteInvoice(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting invoice:", error);
+      res.status(500).json({ error: "Failed to delete invoice" });
+    }
+  });
+
   // ============ TRANSFERS ============
   
   // Get all transfers for a store
