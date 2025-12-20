@@ -114,8 +114,8 @@ export default function SignIn() {
             </div>
             <CardTitle className="text-2xl">Welcome back</CardTitle>
             <CardDescription className="space-y-1">
-              <div className="font-medium text-foreground">{savedUser.name}</div>
-              <div className="text-sm">+91 {savedUser.phone}</div>
+              <div className="font-medium text-foreground" data-testid="text-saved-user-name">{savedUser.name}</div>
+              <div className="text-sm" data-testid="text-saved-user-phone">+91 {savedUser.phone}</div>
             </CardDescription>
           </CardHeader>
           <CardContent>
