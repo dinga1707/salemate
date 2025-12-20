@@ -166,7 +166,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Transfer Requests
-  async getTransfers(storeId: string): Promise<(TransferRequest & { items: TransferLineItem[] })[]> {
+  async getTransfers(storeId: string): Promise<(TransferRequest & { items: TransferLineItem[], fromStore?: { name: string; phone: string }, toStore?: { name: string; phone: string } })[]> {
     const transfers = await db
       .select()
       .from(transferRequests)
@@ -182,11 +182,18 @@ export class DatabaseStorage implements IStorage {
 
     const allTransfers = [...transfers, ...incomingTransfers];
 
-    // Get line items for each transfer
+    // Get line items and store info for each transfer
     const result = await Promise.all(
       allTransfers.map(async (transfer) => {
         const items = await this.getTransferLineItems(transfer.id);
-        return { ...transfer, items };
+        const fromStore = await this.getStoreProfile(transfer.fromStoreId);
+        const toStore = await this.getStoreProfile(transfer.toStoreId);
+        return { 
+          ...transfer, 
+          items,
+          fromStore: fromStore ? { name: fromStore.name, phone: fromStore.phone } : undefined,
+          toStore: toStore ? { name: toStore.name, phone: toStore.phone } : undefined,
+        };
       })
     );
 

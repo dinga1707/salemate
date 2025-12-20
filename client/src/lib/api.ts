@@ -103,6 +103,14 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+    revert: (id: string) => fetchAPI(`/api/transfers/${id}/revert`, {
+      method: 'POST',
+    }),
+    return: (id: string, accept: boolean) => fetchAPI(`/api/transfers/${id}/return`, {
+      method: 'POST',
+      body: JSON.stringify({ accept }),
+    }),
+    getInvoice: (id: string) => fetchAPI(`/api/transfers/${id}/invoice`),
   },
 
   // Bill Scanning

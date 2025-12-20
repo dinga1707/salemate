@@ -424,9 +424,13 @@ export async function registerRoutes(
     lineItems: z.array(z.object({
       itemId: z.string().min(1),
       name: z.string().min(1),
+      hsn: z.string().optional(),
       quantity: z.number().int().positive(),
       unit: z.string().optional(),
-      sellingPrice: z.string().optional(),
+      unitPrice: z.string().optional(),
+      discount: z.string().optional(),
+      gstPercent: z.string().optional(),
+      total: z.string().optional(),
     })).min(1, "At least one item is required"),
   });
 
@@ -498,12 +502,17 @@ export async function registerRoutes(
       const { id } = req.params;
       const { status } = req.body;
       
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
       const transfer = await storage.getTransfer(id);
       if (!transfer) {
         return res.status(404).json({ error: "Transfer not found" });
       }
 
-      const updated = await storage.updateTransfer(id, { status });
+      let updateData: any = { status };
       
       // If rejected, restore stock to sender
       if (status === "REJECTED") {
@@ -520,53 +529,300 @@ export async function registerRoutes(
         }
       }
       
-      // If accepted by receiver, add items to their stock
-      if (status === "ACCEPTED") {
-        const store = await getSessionStore(req);
-        if (store && transfer.toStoreId === store.id) {
-          const transferItems = await storage.getTransferLineItems(id);
-          for (const item of transferItems) {
-            // Check if the item already exists in receiver's inventory by name
-            const existingItems = await storage.getItems(store.id);
-            const existingItem = existingItems.find((i: any) => i.name === item.name);
-            
-            if (existingItem) {
-              // Update quantity of existing item
-              await storage.updateItem(existingItem.id, {
-                quantity: Number(existingItem.quantity) + item.quantity,
-              });
-            } else {
-              // Create new item in receiver's inventory
-              // Get source item details if available
-              let sourceItem = null;
-              if (item.itemId) {
-                sourceItem = await storage.getItem(item.itemId);
-              }
-              
-              await storage.createItem({
-                storeId: store.id,
-                name: item.name,
-                brand: sourceItem?.brand || null,
-                hsn: sourceItem?.hsn || null,
-                unit: sourceItem?.unit || "pcs",
-                gstPercent: sourceItem?.gstPercent || "0",
-                costPrice: sourceItem?.costPrice || "0",
-                margin: sourceItem?.margin || "0",
-                sellingPrice: sourceItem?.sellingPrice || "0",
-                discount: sourceItem?.discount || "0",
-                quantity: item.quantity,
-                location: null,
-              });
+      // If accepted by receiver, add items to their stock and generate invoice
+      if (status === "ACCEPTED" && transfer.toStoreId === store.id) {
+        updateData.acceptedAt = new Date();
+        const transferItems = await storage.getTransferLineItems(id);
+        
+        // Add items to receiver's inventory
+        for (const item of transferItems) {
+          const existingItems = await storage.getItems(store.id);
+          const existingItem = existingItems.find((i: any) => i.name === item.name);
+          
+          if (existingItem) {
+            await storage.updateItem(existingItem.id, {
+              quantity: Number(existingItem.quantity) + item.quantity,
+            });
+          } else {
+            let sourceItem = null;
+            if (item.itemId) {
+              sourceItem = await storage.getItem(item.itemId);
             }
+            
+            await storage.createItem({
+              storeId: store.id,
+              name: item.name,
+              brand: sourceItem?.brand || null,
+              hsn: item.hsn || sourceItem?.hsn || null,
+              unit: item.unit || "pcs",
+              gstPercent: item.gstPercent || sourceItem?.gstPercent || "0",
+              costPrice: item.unitPrice || sourceItem?.costPrice || "0",
+              margin: "0",
+              sellingPrice: item.unitPrice || sourceItem?.sellingPrice || "0",
+              discount: item.discount || "0",
+              quantity: item.quantity,
+              location: null,
+            });
           }
         }
+        
+        // Generate invoice for sender
+        const fromStore = await storage.getStoreProfile(transfer.fromStoreId);
+        const toStore = await storage.getStoreProfile(transfer.toStoreId);
+        
+        let subtotal = 0;
+        let taxTotal = 0;
+        const invoiceLineItems: InsertInvoiceLineItem[] = transferItems.map((item: any) => {
+          const price = parseFloat(item.unitPrice || "0");
+          const discount = parseFloat(item.discount || "0");
+          const gst = parseFloat(item.gstPercent || "0");
+          const itemTotal = (price - discount) * item.quantity;
+          const itemTax = itemTotal * (gst / 100);
+          subtotal += itemTotal;
+          taxTotal += itemTax;
+          
+          return {
+            invoiceId: "", // Will be set after invoice creation
+            itemId: item.itemId,
+            name: item.name,
+            hsn: item.hsn || "",
+            gstPercent: item.gstPercent || "0",
+            quantity: item.quantity,
+            unitPrice: item.unitPrice || "0",
+            discount: item.discount || "0",
+            total: itemTotal.toFixed(2),
+          };
+        });
+        
+        const invoiceNumber = `TRF-${Date.now().toString(36).toUpperCase()}`;
+        const invoice = await storage.createInvoice({
+          storeId: transfer.fromStoreId,
+          invoiceNumber,
+          customerName: toStore?.name || "Unknown Store",
+          customerPhone: toStore?.phone || "",
+          customerStoreId: transfer.toStoreId,
+          transferId: id,
+          date: new Date(),
+          subtotal: subtotal.toFixed(2),
+          taxTotal: taxTotal.toFixed(2),
+          grandTotal: (subtotal + taxTotal).toFixed(2),
+          status: "PAID",
+          type: "INVOICE",
+        }, invoiceLineItems);
+        
+        updateData.invoiceId = invoice.id;
       }
       
+      const updated = await storage.updateTransfer(id, updateData);
       const items = await storage.getTransferLineItems(id);
       res.json({ ...updated, items });
     } catch (error) {
       console.error("Error updating transfer:", error);
       res.status(400).json({ error: "Failed to update transfer" });
+    }
+  });
+
+  // Revert accepted transfer (within 24 hours)
+  app.post("/api/transfers/:id/revert", async (req, res) => {
+    try {
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      const { id } = req.params;
+      const transfer = await storage.getTransfer(id);
+      
+      if (!transfer) {
+        return res.status(404).json({ error: "Transfer not found" });
+      }
+      
+      if (transfer.toStoreId !== store.id) {
+        return res.status(403).json({ error: "Only the receiver can revert a transfer" });
+      }
+      
+      if (transfer.status !== "ACCEPTED") {
+        return res.status(400).json({ error: "Only accepted transfers can be reverted" });
+      }
+      
+      // Check 24-hour window
+      const acceptedAt = transfer.acceptedAt ? new Date(transfer.acceptedAt) : null;
+      if (acceptedAt) {
+        const hoursSinceAccepted = (Date.now() - acceptedAt.getTime()) / (1000 * 60 * 60);
+        if (hoursSinceAccepted > 24) {
+          return res.status(400).json({ error: "Revert window (24 hours) has expired" });
+        }
+      }
+      
+      // Remove items from receiver's inventory
+      const transferItems = await storage.getTransferLineItems(id);
+      for (const item of transferItems) {
+        const existingItems = await storage.getItems(store.id);
+        const existingItem = existingItems.find((i: any) => i.name === item.name);
+        
+        if (existingItem && Number(existingItem.quantity) >= item.quantity) {
+          await storage.updateItem(existingItem.id, {
+            quantity: Number(existingItem.quantity) - item.quantity,
+          });
+        }
+      }
+      
+      const updated = await storage.updateTransfer(id, { 
+        status: "REVERTED" as const,
+        revertedAt: new Date(),
+      });
+      
+      const items = await storage.getTransferLineItems(id);
+      res.json({ ...updated, items });
+    } catch (error) {
+      console.error("Error reverting transfer:", error);
+      res.status(400).json({ error: "Failed to revert transfer" });
+    }
+  });
+
+  // Accept returned items (sender accepts reverted transfer)
+  app.post("/api/transfers/:id/return", async (req, res) => {
+    try {
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      const { id } = req.params;
+      const { accept } = req.body;
+      const transfer = await storage.getTransfer(id);
+      
+      if (!transfer) {
+        return res.status(404).json({ error: "Transfer not found" });
+      }
+      
+      if (transfer.fromStoreId !== store.id) {
+        return res.status(403).json({ error: "Only the sender can handle returned items" });
+      }
+      
+      if (transfer.status !== "REVERTED") {
+        return res.status(400).json({ error: "Only reverted transfers can be returned" });
+      }
+      
+      const transferItems = await storage.getTransferLineItems(id);
+      
+      if (accept) {
+        // Add items back to sender's inventory
+        for (const item of transferItems) {
+          if (item.itemId) {
+            const stockItem = await storage.getItem(item.itemId);
+            if (stockItem) {
+              await storage.updateItem(item.itemId, {
+                quantity: Number(stockItem.quantity) + item.quantity,
+              });
+            }
+          } else {
+            // Create new item if original was deleted
+            await storage.createItem({
+              storeId: store.id,
+              name: item.name,
+              brand: null,
+              hsn: item.hsn || null,
+              unit: item.unit || "pcs",
+              gstPercent: item.gstPercent || "0",
+              costPrice: item.unitPrice || "0",
+              margin: "0",
+              sellingPrice: item.unitPrice || "0",
+              discount: "0",
+              quantity: item.quantity,
+              location: null,
+            });
+          }
+        }
+        
+        const updated = await storage.updateTransfer(id, { 
+          status: "RETURNED" as const,
+          returnedAt: new Date(),
+        });
+        
+        res.json({ ...updated, items: transferItems });
+      } else {
+        // Reject return - items stay with receiver, restore to ACCEPTED status
+        // Re-add items to receiver's inventory
+        const receiverItems = await storage.getItems(transfer.toStoreId);
+        for (const item of transferItems) {
+          const existingItem = receiverItems.find((i: any) => i.name === item.name);
+          if (existingItem) {
+            await storage.updateItem(existingItem.id, {
+              quantity: Number(existingItem.quantity) + item.quantity,
+            });
+          } else {
+            await storage.createItem({
+              storeId: transfer.toStoreId,
+              name: item.name,
+              brand: null,
+              hsn: item.hsn || null,
+              unit: item.unit || "pcs",
+              gstPercent: item.gstPercent || "0",
+              costPrice: item.unitPrice || "0",
+              margin: "0",
+              sellingPrice: item.unitPrice || "0",
+              discount: "0",
+              quantity: item.quantity,
+              location: null,
+            });
+          }
+        }
+        
+        const updated = await storage.updateTransfer(id, { 
+          status: "ACCEPTED" as const,
+        });
+        
+        res.json({ ...updated, items: transferItems });
+      }
+    } catch (error) {
+      console.error("Error handling returned transfer:", error);
+      res.status(400).json({ error: "Failed to handle returned items" });
+    }
+  });
+
+  // Get transfer invoice (accessible by both sender and receiver)
+  app.get("/api/transfers/:id/invoice", async (req, res) => {
+    try {
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      const { id } = req.params;
+      const transfer = await storage.getTransfer(id);
+      
+      if (!transfer) {
+        return res.status(404).json({ error: "Transfer not found" });
+      }
+      
+      // Allow access for both sender and receiver
+      if (transfer.fromStoreId !== store.id && transfer.toStoreId !== store.id) {
+        return res.status(403).json({ error: "Not authorized to view this invoice" });
+      }
+      
+      if (!transfer.invoiceId) {
+        return res.status(404).json({ error: "No invoice generated for this transfer" });
+      }
+      
+      const invoice = await storage.getInvoice(transfer.invoiceId);
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      
+      const items = await storage.getInvoiceLineItems(invoice.id);
+      const fromStore = await storage.getStoreProfile(transfer.fromStoreId);
+      const toStore = await storage.getStoreProfile(transfer.toStoreId);
+      
+      res.json({ 
+        ...invoice, 
+        items,
+        fromStore: fromStore ? { name: fromStore.name, phone: fromStore.phone, address: fromStore.address, gstin: fromStore.gstin } : null,
+        toStore: toStore ? { name: toStore.name, phone: toStore.phone, address: toStore.address, gstin: toStore.gstin } : null,
+      });
+    } catch (error) {
+      console.error("Error fetching transfer invoice:", error);
+      res.status(500).json({ error: "Failed to fetch invoice" });
     }
   });
 
