@@ -284,16 +284,21 @@ export async function registerRoutes(
 
   // ============ BILL SCANNING ============
   
-  // Scan bill image and extract items
+  // Scan bill image and extract items (supports single image or array of images)
   app.post("/api/scan-bill", async (req, res) => {
     try {
-      const { image } = req.body;
+      const { image, images } = req.body;
       
-      if (!image) {
+      // Support both single image and array of images
+      const imagesToScan = images && Array.isArray(images) ? images : (image ? [image] : []);
+      
+      if (imagesToScan.length === 0) {
         return res.status(400).json({ error: "Image data is required" });
       }
 
-      const result = await scanBillImage(image);
+      // For now, scan the first image (primary page)
+      // Future: could combine results from multiple pages
+      const result = await scanBillImage(imagesToScan[0]);
       res.json(result);
     } catch (error: any) {
       console.error("Error scanning bill:", error);
