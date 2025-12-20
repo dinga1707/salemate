@@ -14,7 +14,6 @@ export default function Sidebar() {
     { icon: Package, label: "Stock / Inventory", href: "/inventory" },
     { icon: FileText, label: "Billing", href: "/billing" },
     { icon: ArrowRightLeft, label: "Transfers", href: "/transfers" },
-    { icon: CreditCard, label: "Subscription", href: "/subscription" },
     { icon: PieChart, label: "Reports", href: "/reports" },
     { icon: Settings, label: "Settings", href: "/settings" },
   ];
@@ -80,15 +79,17 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-sidebar-border bg-sidebar-accent/10 space-y-3">
-        <div className="flex items-center gap-3 p-2 rounded-lg border border-border bg-background/50">
-          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
-            {store?.plan?.substring(0, 1) || "F"}
+        <Link href="/subscription">
+          <div className="flex items-center gap-3 p-2 rounded-lg border border-border bg-background/50 hover:bg-primary/5 cursor-pointer transition-colors" data-testid="link-subscription">
+            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
+              <CreditCard className="h-4 w-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate" data-testid="text-plan-name">{store?.plan || 'FREE'} Plan</p>
+              <p className="text-xs text-muted-foreground">Tap to upgrade</p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate" data-testid="text-plan-name">{store?.plan} Plan</p>
-            <p className="text-xs text-muted-foreground">Valid till Dec 2025</p>
-          </div>
-        </div>
+        </Link>
         <Button 
           variant="ghost" 
           size="sm" 

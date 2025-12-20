@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import session from "express-session";
 import bcrypt from "bcrypt";
 import { storage } from "./storage";
+import { db } from "./db";
 import { 
   insertStoreProfileSchema,
   insertItemSchema,
