@@ -5,7 +5,7 @@ import { z } from "zod";
 
 // Enums
 export const subscriptionPlanEnum = pgEnum("subscription_plan", ["FREE", "BASIC", "PRO", "ENTERPRISE"]);
-export const transitStatusEnum = pgEnum("transit_status", ["PENDING", "ACCEPTED", "REJECTED"]);
+export const transitStatusEnum = pgEnum("transit_status", ["PENDING", "ACCEPTED", "REJECTED", "REVERTED", "RETURNED"]);
 export const invoiceStatusEnum = pgEnum("invoice_status", ["DRAFT", "PAID", "CANCELLED"]);
 export const invoiceTypeEnum = pgEnum("invoice_type", ["INVOICE", "PROFORMA"]);
 
@@ -50,6 +50,8 @@ export const invoices = pgTable("invoices", {
   invoiceNumber: text("invoice_number").notNull().unique(),
   customerName: text("customer_name"),
   customerPhone: text("customer_phone"),
+  customerStoreId: varchar("customer_store_id"),
+  transferId: varchar("transfer_id"),
   date: timestamp("date").notNull().defaultNow(),
   subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
   taxTotal: decimal("tax_total", { precision: 10, scale: 2 }).notNull(),
@@ -79,6 +81,10 @@ export const transferRequests = pgTable("transfer_requests", {
   fromStoreId: varchar("from_store_id").notNull(),
   toStoreId: varchar("to_store_id").notNull(),
   status: transitStatusEnum("status").notNull().default("PENDING"),
+  invoiceId: varchar("invoice_id"),
+  acceptedAt: timestamp("accepted_at"),
+  revertedAt: timestamp("reverted_at"),
+  returnedAt: timestamp("returned_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -89,9 +95,13 @@ export const transferLineItems = pgTable("transfer_line_items", {
   transferId: varchar("transfer_id").notNull().references(() => transferRequests.id, { onDelete: "cascade" }),
   itemId: varchar("item_id"),
   name: text("name").notNull(),
+  hsn: text("hsn"),
   quantity: integer("quantity").notNull(),
   unit: text("unit").notNull().default("pcs"),
-  sellingPrice: decimal("selling_price", { precision: 10, scale: 2 }).notNull().default("0"),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull().default("0"),
+  discount: decimal("discount", { precision: 10, scale: 2 }).notNull().default("0"),
+  gstPercent: decimal("gst_percent", { precision: 5, scale: 2 }).notNull().default("0"),
+  total: decimal("total", { precision: 10, scale: 2 }).notNull().default("0"),
 });
 
 // Zod Schemas for Insert/Validation
