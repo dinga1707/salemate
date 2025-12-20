@@ -21,9 +21,25 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Plus, Search, QrCode, Camera } from "lucide-react";
+import { Plus, Search, QrCode, Camera, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Link } from "wouter";
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -72,14 +88,19 @@ interface Item {
   id: string;
   name: string;
   brand?: string | null;
+  hsn?: string | null;
   partyId?: string | null;
   unit: string;
   quantity: number;
   costPrice: string;
   sellingPrice: string;
+  gstPercent?: string | null;
+  location?: string | null;
 }
 
 export default function InventoryList() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { data: items } = useQuery<Item[]>({ 
     queryKey: ['items'], 
     queryFn: () => api.items.list() 
@@ -90,6 +111,20 @@ export default function InventoryList() {
   });
   const [search, setSearch] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const [editItem, setEditItem] = useState<Item | null>(null);
+  const [deleteItem, setDeleteItem] = useState<Item | null>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.items.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      toast({ title: "Item Deleted", description: "Item has been removed from inventory." });
+      setDeleteItem(null);
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    }
+  });
 
   const getPartyName = (partyId?: string | null) => {
     if (!partyId) return "-";
@@ -147,6 +182,7 @@ export default function InventoryList() {
               <TableHead>Cost Price</TableHead>
               <TableHead>Selling Price</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="w-[70px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -165,11 +201,34 @@ export default function InventoryList() {
                     <Badge variant="outline" className="bg-success/10 text-success border-success/20">In Stock</Badge>
                   )}
                 </TableCell>
+                <TableCell>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" data-testid={`button-actions-${item.id}`}>
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setEditItem(item)} data-testid={`button-edit-${item.id}`}>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => setDeleteItem(item)} 
+                        className="text-destructive"
+                        data-testid={`button-delete-${item.id}`}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
               </TableRow>
             ))}
             {filteredItems?.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         No items found. Add some stock!
                     </TableCell>
                 </TableRow>
@@ -177,6 +236,33 @@ export default function InventoryList() {
           </TableBody>
         </Table>
       </div>
+
+      <EditItemSheet 
+        item={editItem} 
+        parties={parties || []} 
+        onClose={() => setEditItem(null)} 
+      />
+
+      <AlertDialog open={!!deleteItem} onOpenChange={() => setDeleteItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Item</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteItem?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteItem && deleteMutation.mutate(deleteItem.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -461,6 +547,299 @@ function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (op
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
                 <Button type="submit" disabled={createItemMutation.isPending} data-testid="button-save-item">
                   {createItemMutation.isPending ? "Saving..." : "Save Item"}
+                </Button>
+            </div>
+          </form>
+        </Form>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function EditItemSheet({ item, parties, onClose }: { item: Item | null; parties: Party[]; onClose: () => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [partySearch, setPartySearch] = useState("");
+  const [showNewParty, setShowNewParty] = useState(false);
+  const [newPartyName, setNewPartyName] = useState("");
+
+  const createPartyMutation = useMutation({
+    mutationFn: (data: { name: string }) => api.parties.create(data),
+    onSuccess: (newParty) => {
+      queryClient.invalidateQueries({ queryKey: ['parties'] });
+      form.setValue('partyId', newParty.id);
+      setShowNewParty(false);
+      setNewPartyName("");
+      toast({ title: "Party Added", description: "New supplier has been added." });
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to create party" });
+    },
+  });
+
+  const filteredParties = parties?.filter(p => 
+    p.name.toLowerCase().includes(partySearch.toLowerCase())
+  ) || [];
+
+  const form = useForm<ItemFormData>({
+    resolver: zodResolver(itemFormSchema),
+    defaultValues: {
+      name: "",
+      brand: "",
+      hsn: "",
+      unit: "nos",
+      gstPercent: 0,
+      costPrice: 0,
+      sellingPrice: 0,
+      margin: 0,
+      quantity: 0,
+      location: "",
+      partyId: "",
+    }
+  });
+
+  // Reset form when item changes
+  React.useEffect(() => {
+    if (item) {
+      form.reset({
+        name: item.name || "",
+        brand: item.brand || "",
+        hsn: item.hsn || "",
+        unit: item.unit || "nos",
+        gstPercent: Number(item.gstPercent) || 0,
+        costPrice: Number(item.costPrice) || 0,
+        sellingPrice: Number(item.sellingPrice) || 0,
+        margin: 0,
+        quantity: item.quantity || 0,
+        location: item.location || "",
+        partyId: item.partyId || "",
+      });
+    }
+  }, [item, form]);
+
+  const updateItemMutation = useMutation({
+    mutationFn: (data: ItemFormData) => api.items.update(item!.id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      toast({ title: "Item Updated", description: "Item has been updated successfully." });
+      onClose();
+    },
+    onError: (error: Error) => {
+      toast({ 
+        variant: "destructive",
+        title: "Error", 
+        description: error.message || "Failed to update item" 
+      });
+    }
+  });
+
+  const onSubmit = (data: ItemFormData) => {
+    updateItemMutation.mutate(data);
+  };
+
+  return (
+    <Sheet open={!!item} onOpenChange={() => onClose()}>
+      <SheetContent className="overflow-y-auto w-[400px] sm:w-[540px]">
+        <SheetHeader>
+          <SheetTitle>Edit Stock</SheetTitle>
+          <SheetDescription>
+            Modify item details, adjust quantity, or update pricing.
+          </SheetDescription>
+        </SheetHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Item Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g. Samsung Galaxy M32" {...field} data-testid="input-edit-item-name" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="partyId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Party (Supplier)</FormLabel>
+                  {showNewParty ? (
+                    <div className="flex gap-2">
+                      <Input 
+                        placeholder="Enter new party name" 
+                        value={newPartyName}
+                        onChange={(e) => setNewPartyName(e.target.value)}
+                        data-testid="input-edit-new-party"
+                      />
+                      <Button 
+                        type="button" 
+                        size="sm"
+                        onClick={() => createPartyMutation.mutate({ name: newPartyName })}
+                        disabled={!newPartyName.trim() || createPartyMutation.isPending}
+                      >
+                        Add
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setShowNewParty(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-edit-party">
+                            <SelectValue placeholder="Select party (supplier)" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <div className="p-2">
+                            <Input 
+                              placeholder="Search party..." 
+                              value={partySearch}
+                              onChange={(e) => setPartySearch(e.target.value)}
+                              className="mb-2"
+                            />
+                          </div>
+                          {filteredParties.length === 0 && partySearch && (
+                            <div className="p-2 text-sm text-muted-foreground">No parties found</div>
+                          )}
+                          {filteredParties.map((party) => (
+                            <SelectItem key={party.id} value={party.id}>
+                              {party.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setShowNewParty(true)}>
+                        + Add new party
+                      </Button>
+                    </div>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+                <FormField
+                control={form.control}
+                name="brand"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Brand</FormLabel>
+                    <FormControl>
+                        <Input placeholder="Samsung" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                 <FormField
+                control={form.control}
+                name="hsn"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>HSN Code</FormLabel>
+                    <FormControl>
+                        <Input placeholder="8517" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+            </div>
+            
+            <div className="grid grid-cols-3 gap-4">
+                 <FormField
+                control={form.control}
+                name="quantity"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Quantity</FormLabel>
+                    <FormControl>
+                        <Input type="number" {...field} data-testid="input-edit-quantity" />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                 <FormField
+                control={form.control}
+                name="unit"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Unit</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-edit-unit">
+                          <SelectValue placeholder="Select unit" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {UNIT_OPTIONS.map((unit) => (
+                          <SelectItem key={unit.value} value={unit.value}>
+                            {unit.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                 <FormField
+                control={form.control}
+                name="gstPercent"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>GST %</FormLabel>
+                    <FormControl>
+                        <Input type="number" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg border border-border/50">
+                 <FormField
+                control={form.control}
+                name="costPrice"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Cost Price (₹)</FormLabel>
+                    <FormControl>
+                        <Input type="number" step="0.01" {...field} data-testid="input-edit-cost-price" />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                 <FormField
+                control={form.control}
+                name="sellingPrice"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Selling Price (₹)</FormLabel>
+                    <FormControl>
+                        <Input type="number" step="0.01" {...field} data-testid="input-edit-selling-price" />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+            </div>
+
+            <div className="pt-4 flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+                <Button type="submit" disabled={updateItemMutation.isPending} data-testid="button-update-item">
+                  {updateItemMutation.isPending ? "Saving..." : "Update Item"}
                 </Button>
             </div>
           </form>
