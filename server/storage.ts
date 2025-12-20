@@ -19,7 +19,7 @@ import {
   type InsertTransferLineItem,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte, desc } from "drizzle-orm";
+import { eq, and, gte, lte, desc, or, ilike, ne } from "drizzle-orm";
 
 export interface IStorage {
   // Authentication
@@ -51,6 +51,9 @@ export interface IStorage {
   createTransfer(transfer: InsertTransferRequest, lineItems: InsertTransferLineItem[]): Promise<TransferRequest>;
   updateTransfer(id: string, data: Partial<InsertTransferRequest>): Promise<TransferRequest>;
   getTransferLineItems(transferId: string): Promise<TransferLineItem[]>;
+  
+  // Store Search
+  searchStores(query: string, excludeStoreId: string): Promise<Pick<StoreProfile, 'id' | 'name' | 'phone' | 'address' | 'plan'>[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -218,6 +221,30 @@ export class DatabaseStorage implements IStorage {
 
   async getTransferLineItems(transferId: string): Promise<TransferLineItem[]> {
     return db.select().from(transferLineItems).where(eq(transferLineItems.transferId, transferId));
+  }
+
+  async searchStores(query: string, excludeStoreId: string): Promise<Pick<StoreProfile, 'id' | 'name' | 'phone' | 'address' | 'plan'>[]> {
+    const searchTerm = `%${query}%`;
+    const stores = await db
+      .select({
+        id: storeProfiles.id,
+        name: storeProfiles.name,
+        phone: storeProfiles.phone,
+        address: storeProfiles.address,
+        plan: storeProfiles.plan,
+      })
+      .from(storeProfiles)
+      .where(
+        and(
+          ne(storeProfiles.id, excludeStoreId),
+          or(
+            ilike(storeProfiles.name, searchTerm),
+            ilike(storeProfiles.phone, searchTerm)
+          )
+        )
+      )
+      .limit(10);
+    return stores;
   }
 }
 

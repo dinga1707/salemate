@@ -12,6 +12,7 @@ import ScanBill from "@/pages/inventory/ScanBill";
 import InvoiceList from "@/pages/billing/InvoiceList";
 import CreateInvoice from "@/pages/billing/CreateInvoice";
 import TransferList from "@/pages/transfers/TransferList";
+import CreateTransfer from "@/pages/transfers/CreateTransfer";
 import SignUp from "@/pages/auth/SignUp";
 import SignIn from "@/pages/auth/SignIn";
 import { Loader2 } from "lucide-react";
@@ -100,6 +101,13 @@ function Router() {
         <ProtectedRoute component={() => (
           <AppShell>
             <TransferList />
+          </AppShell>
+        )} />
+      </Route>
+      <Route path="/transfers/new">
+        <ProtectedRoute component={() => (
+          <AppShell>
+            <CreateTransfer />
           </AppShell>
         )} />
       </Route>

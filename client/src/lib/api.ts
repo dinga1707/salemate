@@ -62,6 +62,7 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+    search: (query: string) => fetchAPI(`/api/stores/search?q=${encodeURIComponent(query)}`),
   },
 
   // Items

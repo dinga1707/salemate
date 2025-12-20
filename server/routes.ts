@@ -202,6 +202,27 @@ export async function registerRoutes(
     }
   });
 
+  // Search for stores by name or phone (for transfers)
+  app.get("/api/stores/search", async (req, res) => {
+    try {
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      const query = req.query.q as string;
+      if (!query || query.trim().length < 2) {
+        return res.json([]);
+      }
+      
+      const stores = await storage.searchStores(query.trim(), store.id);
+      res.json(stores);
+    } catch (error) {
+      console.error("Error searching stores:", error);
+      res.status(500).json({ error: "Failed to search stores" });
+    }
+  });
+
   // ============ ITEMS ============
   
   // Get all items for a store
@@ -378,24 +399,67 @@ export async function registerRoutes(
 
   // Create transfer request
   const createTransferSchema = z.object({
-    transfer: insertTransferRequestSchema,
-    lineItems: z.array(insertTransferLineItemSchema),
+    transfer: z.object({
+      toStoreId: z.string().min(1, "Recipient store is required"),
+    }),
+    lineItems: z.array(z.object({
+      itemId: z.string().min(1),
+      name: z.string().min(1),
+      quantity: z.number().int().positive(),
+    })).min(1, "At least one item is required"),
   });
 
   app.post("/api/transfers", async (req, res) => {
     try {
+      // Require authentication
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
       const { transfer, lineItems } = createTransferSchema.parse(req.body);
-      const created = await storage.createTransfer(transfer, lineItems);
+      
+      // Prevent self-transfer
+      if (transfer.toStoreId === store.id) {
+        return res.status(400).json({ error: "Cannot transfer to your own store" });
+      }
+      
+      // Verify recipient store exists
+      const recipientStore = await storage.getStoreProfile(transfer.toStoreId);
+      if (!recipientStore) {
+        return res.status(400).json({ error: "Recipient store not found" });
+      }
+      
+      // Validate items belong to sender and have sufficient stock
+      for (const item of lineItems) {
+        const stockItem = await storage.getItem(item.itemId);
+        if (!stockItem) {
+          return res.status(400).json({ error: `Item ${item.name} not found` });
+        }
+        if (stockItem.storeId !== store.id) {
+          return res.status(403).json({ error: `Item ${item.name} does not belong to your store` });
+        }
+        if (Number(stockItem.quantity) < item.quantity) {
+          return res.status(400).json({ error: `Insufficient stock for ${item.name}` });
+        }
+      }
+      
+      // Create transfer with session store as sender
+      const transferData = {
+        fromStoreId: store.id,
+        toStoreId: transfer.toStoreId,
+        status: "PENDING" as const,
+      };
+      
+      const created = await storage.createTransfer(transferData, lineItems);
       
       // Reduce stock from sender
       for (const item of lineItems) {
-        if (item.itemId) {
-          const stockItem = await storage.getItem(item.itemId);
-          if (stockItem) {
-            await storage.updateItem(item.itemId, {
-              quantity: Number(stockItem.quantity) - item.quantity,
-            });
-          }
+        const stockItem = await storage.getItem(item.itemId);
+        if (stockItem) {
+          await storage.updateItem(item.itemId, {
+            quantity: Number(stockItem.quantity) - item.quantity,
+          });
         }
       }
       
