@@ -77,6 +77,21 @@ Plan limits are enforced client-side via the `entitlements.ts` service:
 - `connect-pg-simple`: PostgreSQL session store (available but sessions not fully implemented yet)
 - `express-session`: Session middleware
 
+### Stock Transfer Workflow
+The app supports inter-store stock transfers with the following statuses:
+- **PENDING**: Transfer requested, awaiting receiver action
+- **ACCEPTED**: Receiver accepted, items added to their inventory, invoice generated
+- **REJECTED**: Receiver declined, items returned to sender
+- **REVERTED**: Receiver changed their mind within 24h, items removed from their inventory
+- **RETURNED**: Sender accepted the reverted items back
+
+Key features:
+- Transfer line items include HSN, unit price, discount, GST percentage, and calculated total
+- Invoice auto-generated on acceptance (format: TRF-{timestamp})
+- 24-hour revert window from acceptedAt timestamp
+- Both sender and receiver can view transfer invoices
+- Sender/receiver store names displayed in transfer listings
+
 ### Future Considerations (Architecture Notes)
 - Store marketplace listing feature planned but not yet built
 - Offline-first sync mechanism will require service workers and local database (IndexedDB)
