@@ -10,6 +10,17 @@ export const invoiceStatusEnum = pgEnum("invoice_status", ["DRAFT", "PAID", "CAN
 export const invoiceTypeEnum = pgEnum("invoice_type", ["INVOICE", "PROFORMA"]);
 export const paymentMethodEnum = pgEnum("payment_method", ["CASH", "UPI", "BANK_TRANSFER", "CHEQUE", "CREDIT"]);
 
+// Parties (Suppliers) Table
+export const parties = pgTable("parties", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  storeId: varchar("store_id").notNull(),
+  name: text("name").notNull(),
+  gstin: text("gstin"),
+  phone: text("phone"),
+  address: text("address"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Store Profile Table (with authentication fields)
 export const storeProfiles = pgTable("store_profiles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -30,6 +41,7 @@ export const storeProfiles = pgTable("store_profiles", {
 export const items = pgTable("items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   storeId: varchar("store_id").notNull().references(() => storeProfiles.id),
+  partyId: varchar("party_id").references(() => parties.id),
   name: text("name").notNull(),
   brand: text("brand"),
   hsn: text("hsn"),
@@ -155,7 +167,14 @@ export const insertTransferLineItemSchema = createInsertSchema(transferLineItems
   id: true,
 });
 
+export const insertPartySchema = createInsertSchema(parties).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
+export type Party = typeof parties.$inferSelect;
+export type InsertParty = z.infer<typeof insertPartySchema>;
 export type StoreProfile = typeof storeProfiles.$inferSelect;
 export type InsertStoreProfile = z.infer<typeof insertStoreProfileSchema>;
 

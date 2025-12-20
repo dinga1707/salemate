@@ -5,6 +5,7 @@ import {
   invoiceLineItems,
   transferRequests,
   transferLineItems,
+  parties,
   type StoreProfile,
   type InsertStoreProfile,
   type Item,
@@ -17,6 +18,8 @@ import {
   type InsertTransferRequest,
   type TransferLineItem,
   type InsertTransferLineItem,
+  type Party,
+  type InsertParty,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, desc, or, ilike, ne } from "drizzle-orm";
@@ -56,6 +59,14 @@ export interface IStorage {
   
   // Store Search
   searchStores(query: string, excludeStoreId: string): Promise<Pick<StoreProfile, 'id' | 'name' | 'phone' | 'address' | 'plan'>[]>;
+
+  // Parties (Suppliers)
+  getParties(storeId: string): Promise<Party[]>;
+  getParty(id: string): Promise<Party | undefined>;
+  createParty(party: InsertParty): Promise<Party>;
+  updateParty(id: string, data: Partial<InsertParty>): Promise<Party>;
+  deleteParty(id: string): Promise<void>;
+  searchParties(storeId: string, query: string): Promise<Party[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -279,6 +290,51 @@ export class DatabaseStorage implements IStorage {
       )
       .limit(10);
     return stores;
+  }
+
+  // Parties (Suppliers)
+  async getParties(storeId: string): Promise<Party[]> {
+    return db.select().from(parties).where(eq(parties.storeId, storeId)).orderBy(desc(parties.createdAt));
+  }
+
+  async getParty(id: string): Promise<Party | undefined> {
+    const [party] = await db.select().from(parties).where(eq(parties.id, id));
+    return party || undefined;
+  }
+
+  async createParty(party: InsertParty): Promise<Party> {
+    const [newParty] = await db.insert(parties).values(party).returning();
+    return newParty;
+  }
+
+  async updateParty(id: string, data: Partial<InsertParty>): Promise<Party> {
+    const [updated] = await db
+      .update(parties)
+      .set(data)
+      .where(eq(parties.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteParty(id: string): Promise<void> {
+    await db.delete(parties).where(eq(parties.id, id));
+  }
+
+  async searchParties(storeId: string, query: string): Promise<Party[]> {
+    const searchTerm = `%${query}%`;
+    return db
+      .select()
+      .from(parties)
+      .where(
+        and(
+          eq(parties.storeId, storeId),
+          or(
+            ilike(parties.name, searchTerm),
+            ilike(parties.phone, searchTerm)
+          )
+        )
+      )
+      .limit(20);
   }
 }
 
