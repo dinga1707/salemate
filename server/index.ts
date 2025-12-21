@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
@@ -53,7 +54,12 @@ async function initStripe() {
   }
 }
 
-await initStripe();
+const enableStripe = process.env.ENABLE_STRIPE === "true";
+if (enableStripe) {
+  await initStripe();
+} else {
+  console.log("Stripe init skipped (set ENABLE_STRIPE=true to enable)");
+}
 
 app.post(
   '/api/stripe/webhook',
@@ -154,14 +160,9 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
-    },
-  );
+  const host = process.env.HOST || "127.0.0.1";
+
+  httpServer.listen(port, host, () => {
+    log(`serving on http://${host}:${port}`);
+  });
 })();
