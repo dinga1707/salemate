@@ -155,6 +155,7 @@ export const insertInvoiceSchema = createInsertSchema(invoices).omit({
 
 export const insertInvoiceLineItemSchema = createInsertSchema(invoiceLineItems).omit({
   id: true,
+  invoiceId: true,
 });
 
 export const insertTransferRequestSchema = createInsertSchema(transferRequests).omit({
@@ -165,6 +166,7 @@ export const insertTransferRequestSchema = createInsertSchema(transferRequests).
 
 export const insertTransferLineItemSchema = createInsertSchema(transferLineItems).omit({
   id: true,
+  transferId: true,
 });
 
 export const insertPartySchema = createInsertSchema(parties).omit({
