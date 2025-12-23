@@ -747,6 +747,21 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Transfer not found" });
       }
 
+      if (status === "ACCEPTED" && transfer.toStoreId !== store.id) {
+        return res.status(403).json({ error: "Only the receiver can accept a transfer" });
+      }
+
+      if (status === "REJECTED") {
+        const isReceiver = transfer.toStoreId === store.id;
+        const isSender = transfer.fromStoreId === store.id;
+        if (!isReceiver && !isSender) {
+          return res.status(403).json({ error: "Not authorized to update this transfer" });
+        }
+        if (isSender && transfer.status !== "PENDING") {
+          return res.status(400).json({ error: "Only pending transfers can be cancelled by the sender" });
+        }
+      }
+
       let updateData: any = { status };
       
       // If rejected, restore stock to sender

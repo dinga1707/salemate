@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRightLeft, Check, X, Plus, RotateCcw, FileText, Clock } from "lucide-react";
+import { ArrowRightLeft, Check, X, Plus, RotateCcw, FileText, Clock, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, differenceInHours, differenceInMinutes } from "date-fns";
 import { Link } from "wouter";
@@ -19,6 +19,8 @@ export default function TransferList() {
   const { user: store } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [incomingSearch, setIncomingSearch] = useState("");
+  const [outgoingSearch, setOutgoingSearch] = useState("");
 
   const updateTransferMutation = useMutation({
     mutationFn: ({ id, status }: { id: string, status: string }) => 
@@ -28,8 +30,8 @@ export default function TransferList() {
       queryClient.invalidateQueries({ queryKey: ['items'] });
       if (variables.status === 'ACCEPTED') {
         toast({ title: "Transfer Accepted", description: "Items added to your inventory." });
-      } else {
-        toast({ title: "Transfer Rejected", description: "Items returned to source." });
+      } else if (variables.status === 'REJECTED') {
+        toast({ title: "Transfer Cancelled", description: "Items returned to source." });
       }
     },
     onError: (error: Error) => {
@@ -86,6 +88,10 @@ export default function TransferList() {
     updateTransferMutation.mutate({ id: transfer.id, status: 'REJECTED' });
   };
 
+  const handleCancel = (transfer: any) => {
+    updateTransferMutation.mutate({ id: transfer.id, status: 'REJECTED' });
+  };
+
   const handleRevert = (transfer: any) => {
     revertMutation.mutate(transfer.id);
   };
@@ -114,12 +120,32 @@ export default function TransferList() {
           <TabsTrigger value="outgoing">Outgoing (Sent)</TabsTrigger>
         </TabsList>
         <TabsContent value="incoming" className="mt-4 space-y-4">
-           {transfers?.filter((t: any) => t.toStoreId === store?.id).length === 0 && (
+           <div className="relative w-full sm:max-w-sm">
+             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+             <input
+               value={incomingSearch}
+               onChange={(e) => setIncomingSearch(e.target.value)}
+               placeholder="Search by sender name..."
+               className="h-10 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+             />
+           </div>
+           {transfers?.filter((t: any) => t.toStoreId === store?.id)
+             .filter((t: any) => {
+               if (!incomingSearch.trim()) return true;
+               const name = (t.fromStore?.name || t.fromStoreId || "").toLowerCase();
+               return name.includes(incomingSearch.toLowerCase());
+             }).length === 0 && (
                <div className="text-center py-12 text-muted-foreground border rounded-lg bg-muted/10">
                    No incoming transfers.
                </div>
            )}
-           {transfers?.filter((t: any) => t.toStoreId === store?.id).map((t: any) => (
+           {transfers?.filter((t: any) => t.toStoreId === store?.id)
+             .filter((t: any) => {
+               if (!incomingSearch.trim()) return true;
+               const name = (t.fromStore?.name || t.fromStoreId || "").toLowerCase();
+               return name.includes(incomingSearch.toLowerCase());
+             })
+             .map((t: any) => (
                <TransferCard 
                  key={t.id} 
                  transfer={t} 
@@ -131,17 +157,38 @@ export default function TransferList() {
            ))}
         </TabsContent>
         <TabsContent value="outgoing" className="mt-4 space-y-4">
-            {transfers?.filter((t: any) => t.fromStoreId === store?.id).length === 0 && (
+            <div className="relative w-full sm:max-w-sm">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <input
+                value={outgoingSearch}
+                onChange={(e) => setOutgoingSearch(e.target.value)}
+                placeholder="Search by receiver name..."
+                className="h-10 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              />
+            </div>
+            {transfers?.filter((t: any) => t.fromStoreId === store?.id)
+              .filter((t: any) => {
+                if (!outgoingSearch.trim()) return true;
+                const name = (t.toStore?.name || t.toStoreId || "").toLowerCase();
+                return name.includes(outgoingSearch.toLowerCase());
+              }).length === 0 && (
                <div className="text-center py-12 text-muted-foreground border rounded-lg bg-muted/10">
                    No outgoing transfers.
                </div>
            )}
-           {transfers?.filter((t: any) => t.fromStoreId === store?.id).map((t: any) => (
+           {transfers?.filter((t: any) => t.fromStoreId === store?.id)
+             .filter((t: any) => {
+               if (!outgoingSearch.trim()) return true;
+               const name = (t.toStore?.name || t.toStoreId || "").toLowerCase();
+               return name.includes(outgoingSearch.toLowerCase());
+             })
+             .map((t: any) => (
                <TransferCard 
                  key={t.id} 
                  transfer={t} 
                  onAcceptReturn={() => handleReturn(t, true)}
                  onRejectReturn={() => handleReturn(t, false)}
+                 onCancel={() => handleCancel(t)}
                />
            ))}
         </TabsContent>
@@ -150,13 +197,14 @@ export default function TransferList() {
   );
 }
 
-function TransferCard({ transfer, onAccept, onReject, onRevert, onAcceptReturn, onRejectReturn, isIncoming }: { 
+function TransferCard({ transfer, onAccept, onReject, onRevert, onAcceptReturn, onRejectReturn, onCancel, isIncoming }: { 
   transfer: any, 
   onAccept?: () => void, 
   onReject?: () => void, 
   onRevert?: () => void,
   onAcceptReturn?: () => void,
   onRejectReturn?: () => void,
+  onCancel?: () => void,
   isIncoming?: boolean 
 }) {
   const [remainingTime, setRemainingTime] = useState<string | null>(null);
@@ -252,6 +300,11 @@ function TransferCard({ transfer, onAccept, onReject, onRevert, onAcceptReturn, 
                   <Check className="mr-1 h-4 w-4" /> Accept Return
                 </Button>
               </>
+            )}
+            {!isIncoming && transfer.status === 'PENDING' && (
+              <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={onCancel} data-testid="button-cancel-transfer">
+                <X className="mr-1 h-4 w-4" /> Cancel
+              </Button>
             )}
             {transfer.invoiceId && (
               <Link href={`/transfers/${transfer.id}/invoice`}>
