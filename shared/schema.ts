@@ -9,6 +9,7 @@ export const transitStatusEnum = pgEnum("transit_status", ["PENDING", "ACCEPTED"
 export const invoiceStatusEnum = pgEnum("invoice_status", ["DRAFT", "PAID", "CANCELLED"]);
 export const invoiceTypeEnum = pgEnum("invoice_type", ["INVOICE", "PROFORMA"]);
 export const paymentMethodEnum = pgEnum("payment_method", ["CASH", "UPI", "BANK_TRANSFER", "CHEQUE", "CREDIT", "PAY_LATER"]);
+export const partyTypeEnum = pgEnum("party_type", ["CUSTOMER", "SUPPLIER", "BOTH"]);
 
 // Parties (Suppliers) Table
 export const parties = pgTable("parties", {
@@ -18,6 +19,9 @@ export const parties = pgTable("parties", {
   gstin: text("gstin"),
   phone: text("phone"),
   address: text("address"),
+  type: partyTypeEnum("type").notNull().default("SUPPLIER"),
+  toPay: decimal("to_pay", { precision: 12, scale: 2 }).notNull().default("0"),
+  toReceive: decimal("to_receive", { precision: 12, scale: 2 }).notNull().default("0"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

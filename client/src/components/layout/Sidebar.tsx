@@ -1,9 +1,12 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Package, FileText, ArrowRightLeft, Settings, PieChart, LogOut, Store, CreditCard } from "lucide-react";
+import { LayoutDashboard, Package, FileText, ArrowRightLeft, Settings, PieChart, LogOut, Store, CreditCard, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useMemo } from "react";
 
 interface SidebarProps {
   className?: string;
@@ -14,10 +17,21 @@ interface SidebarProps {
 export default function Sidebar({ className, isMobile = false, onNavigate }: SidebarProps) {
   const [location] = useLocation();
   const { user: store, signout } = useAuth();
+  const { data: transfers } = useQuery({
+    queryKey: ["transfers"],
+    queryFn: () => api.transfers.list(),
+    enabled: !!store?.id,
+  });
+
+  const pendingIncoming = useMemo(() => {
+    if (!transfers || !store?.id) return 0;
+    return transfers.filter((transfer: any) => transfer.toStoreId === store.id && transfer.status === "PENDING").length;
+  }, [transfers, store?.id]);
 
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/" },
     { icon: Package, label: "Stock / Inventory", href: "/inventory" },
+    { icon: Users, label: "Parties", href: "/parties" },
     { icon: FileText, label: "Billing", href: "/billing" },
     { icon: ArrowRightLeft, label: "Transfers", href: "/transfers" },
     { icon: PieChart, label: "Reports", href: "/reports" },
@@ -86,6 +100,11 @@ export default function Sidebar({ className, isMobile = false, onNavigate }: Sid
               >
                 <item.icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
                 {item.label}
+                {item.href === "/transfers" && pendingIncoming > 0 && (
+                  <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                    {pendingIncoming}
+                  </span>
+                )}
               </div>
             </Link>
           );

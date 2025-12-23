@@ -3,6 +3,7 @@ import { Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { useTransferNotifications } from "@/hooks/use-transfer-notifications";
 
 interface AppShellProps {
   children: ReactNode;
@@ -10,6 +11,7 @@ interface AppShellProps {
 
 export default function AppShell({ children }: AppShellProps) {
   const [isOpen, setIsOpen] = useState(false);
+  useTransferNotifications();
 
   return (
     <div className="min-h-screen bg-background text-foreground">

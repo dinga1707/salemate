@@ -270,7 +270,9 @@ export async function registerRoutes(
       if (!store) {
         return res.status(401).json({ error: "Not authenticated" });
       }
-      const partyData = { ...req.body, storeId: store.id };
+      const partyData: any = { ...req.body, storeId: store.id };
+      if (partyData.toPay !== undefined) partyData.toPay = String(partyData.toPay);
+      if (partyData.toReceive !== undefined) partyData.toReceive = String(partyData.toReceive);
       const party = await storage.createParty(partyData);
       res.status(201).json(party);
     } catch (error) {
@@ -283,7 +285,10 @@ export async function registerRoutes(
   app.patch("/api/parties/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const updated = await storage.updateParty(id, req.body);
+      const partyData: any = { ...req.body };
+      if (partyData.toPay !== undefined) partyData.toPay = String(partyData.toPay);
+      if (partyData.toReceive !== undefined) partyData.toReceive = String(partyData.toReceive);
+      const updated = await storage.updateParty(id, partyData);
       res.json(updated);
     } catch (error) {
       console.error("Error updating party:", error);
@@ -740,6 +745,21 @@ export async function registerRoutes(
       const transfer = await storage.getTransfer(id);
       if (!transfer) {
         return res.status(404).json({ error: "Transfer not found" });
+      }
+
+      if (status === "ACCEPTED" && transfer.toStoreId !== store.id) {
+        return res.status(403).json({ error: "Only the receiver can accept a transfer" });
+      }
+
+      if (status === "REJECTED") {
+        const isReceiver = transfer.toStoreId === store.id;
+        const isSender = transfer.fromStoreId === store.id;
+        if (!isReceiver && !isSender) {
+          return res.status(403).json({ error: "Not authorized to update this transfer" });
+        }
+        if (isSender && transfer.status !== "PENDING") {
+          return res.status(400).json({ error: "Only pending transfers can be cancelled by the sender" });
+        }
       }
 
       let updateData: any = { status };
