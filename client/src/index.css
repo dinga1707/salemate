@@ -45,6 +45,12 @@
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
+
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
 }
 
 :root {
@@ -90,6 +96,12 @@
   --ring: 282 39% 43%;
 
   --radius: 0.5rem;
+
+  --sidebar: 282 35% 18%;
+  --sidebar-foreground: 0 0% 98%;
+  --sidebar-border: 282 25% 28%;
+  --sidebar-accent: 282 35% 26%;
+  --sidebar-accent-foreground: 0 0% 100%;
 }
 
 .dark {
@@ -129,6 +141,12 @@
   --border: 282 20% 20%;
   --input: 282 20% 20%;
   --ring: 282 50% 60%;
+
+  --sidebar: 282 35% 12%;
+  --sidebar-foreground: 0 0% 98%;
+  --sidebar-border: 282 25% 22%;
+  --sidebar-accent: 282 35% 20%;
+  --sidebar-accent-foreground: 0 0% 100%;
 }
 
 @layer base {
