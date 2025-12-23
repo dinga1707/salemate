@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, decimal, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, decimal, timestamp, pgEnum, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -35,7 +35,15 @@ export const storeProfiles = pgTable("store_profiles", {
   gstin: text("gstin"),
   email: text("email"),
   address: text("address"),
-  shopPhoto: text("shop_photo"),
+  state: text("state"),
+  city: text("city"),
+  pincode: text("pincode"),
+  businessType: text("business_type"),
+  panNumber: text("pan_number"),
+  eInvoiceEnabled: boolean("e_invoice_enabled").notNull().default(false),
+  signaturePhoto: text("signature_photo"),
+  logo: text("logo"),
+  ownerPhoto: text("owner_photo"),
   plan: subscriptionPlanEnum("plan").notNull().default("FREE"),
   templateId: text("template_id").notNull().default("default"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -139,7 +147,8 @@ export const signupSchema = z.object({
   gstin: z.string().optional(),
   email: z.string().email("Enter a valid email").optional().or(z.literal("")),
   address: z.string().optional(),
-  shopPhoto: z.string().optional(),
+  logo: z.string().optional(),
+  ownerPhoto: z.string().optional(),
 });
 
 export const signinSchema = z.object({

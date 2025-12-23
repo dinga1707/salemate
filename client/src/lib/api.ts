@@ -30,7 +30,8 @@ export interface SignupData {
   gstin?: string;
   email?: string;
   address?: string;
-  shopPhoto?: string;
+  logo?: string;
+  ownerPhoto?: string;
 }
 
 export interface SigninData {

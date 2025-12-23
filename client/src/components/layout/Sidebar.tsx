@@ -51,23 +51,12 @@ export default function Sidebar({ className, isMobile = false, onNavigate }: Sid
 
   return (
     <div className={containerClasses}>
-      <div className="p-6 border-b border-sidebar-border">
-        <div className="flex items-center gap-2 mb-1">
-          <img 
-            src="/assets/salemate-logo.png" 
-            alt="Salemate" 
-            className="h-8 w-8 object-contain"
-          />
-          <span className="font-heading font-bold text-xl tracking-tight text-sidebar-foreground">Salemate</span>
-        </div>
-      </div>
-      
       <div className="p-4 border-b border-sidebar-border bg-sidebar-accent/20">
         <div className="flex items-center gap-3">
           <Avatar className="h-12 w-12 border-2 border-primary/20">
-            <AvatarImage src={store?.shopPhoto || undefined} alt={store?.name} />
+            <AvatarImage src={store?.logo || undefined} alt={store?.name} />
             <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-              {store?.shopPhoto ? <Store className="h-5 w-5" /> : getInitials(store?.name)}
+              {store?.logo ? <Store className="h-5 w-5" /> : getInitials(store?.name)}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">

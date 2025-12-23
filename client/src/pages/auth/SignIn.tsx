@@ -45,7 +45,8 @@ export default function SignIn() {
   const [savedUser, setSavedUser] = useState<{
     phone: string;
     name: string;
-    shopPhoto?: string;
+    logo?: string;
+    ownerPhoto?: string;
   } | null>(null);
   const [isQuickLogin, setIsQuickLogin] = useState(false);
 
@@ -102,7 +103,7 @@ export default function SignIn() {
             <>
               <div className="mx-auto mb-4">
                 <Avatar className="h-20 w-20 mx-auto">
-                  <AvatarImage src={savedUser.shopPhoto} />
+                  <AvatarImage src={savedUser.ownerPhoto || savedUser.logo} />
                   <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
                     {savedUser.name?.charAt(0).toUpperCase()}
                   </AvatarFallback>

@@ -10,7 +10,15 @@ interface StoreProfile {
   gstin?: string;
   email?: string;
   address?: string;
-  shopPhoto?: string;
+  state?: string;
+  city?: string;
+  pincode?: string;
+  businessType?: string;
+  panNumber?: string;
+  eInvoiceEnabled?: boolean;
+  signaturePhoto?: string;
+  logo?: string;
+  ownerPhoto?: string;
   plan: string;
   templateId: string;
   createdAt: string;
@@ -58,7 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem("lastUser", JSON.stringify({
           phone: data.phone,
           name: data.ownerName || data.name,
-          shopPhoto: data.shopPhoto,
+          logo: data.logo,
+          ownerPhoto: data.ownerPhoto,
         }));
       }
       queryClient.invalidateQueries({ queryKey: ["auth"] });
