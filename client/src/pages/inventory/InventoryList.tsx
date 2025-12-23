@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { parseCsv, type CsvRow } from "@/lib/csv";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,7 +22,7 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Plus, Search, QrCode, Camera, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, QrCode, Camera, MoreHorizontal, Pencil, Trash2, Upload } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,7 +40,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Link } from "wouter";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -98,6 +99,21 @@ interface Item {
   location?: string | null;
 }
 
+interface ItemBulkRow {
+  name: string;
+  brand?: string;
+  hsn?: string;
+  unit?: string;
+  gstPercent?: number;
+  costPrice?: number;
+  sellingPrice?: number;
+  margin?: number;
+  discount?: number;
+  quantity?: number;
+  location?: string;
+  partyName?: string;
+}
+
 export default function InventoryList() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -113,6 +129,53 @@ export default function InventoryList() {
   const [isOpen, setIsOpen] = useState(false);
   const [editItem, setEditItem] = useState<Item | null>(null);
   const [deleteItem, setDeleteItem] = useState<Item | null>(null);
+  const bulkFileRef = useRef<HTMLInputElement>(null);
+
+  const getValue = (row: CsvRow, keys: string[]) => {
+    for (const key of keys) {
+      const value = row[key];
+      if (value && value.trim().length > 0) return value.trim();
+    }
+    return "";
+  };
+
+  const parseNumber = (value: string) => {
+    const cleaned = value.replace(/[^0-9.-]/g, "");
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const mapItemRow = (row: CsvRow): ItemBulkRow | null => {
+    const name = getValue(row, ["name", "itemname", "productname"]);
+    if (!name) return null;
+
+    const brand = getValue(row, ["brand"]);
+    const hsn = getValue(row, ["hsn", "hsncode"]);
+    const unit = getValue(row, ["unit", "uom"]);
+    const gstPercent = getValue(row, ["gstpercent", "gst", "gstpercentage"]);
+    const costPrice = getValue(row, ["costprice", "cost", "purchaseprice", "buyprice"]);
+    const sellingPrice = getValue(row, ["sellingprice", "saleprice", "price"]);
+    const margin = getValue(row, ["margin"]);
+    const discount = getValue(row, ["discount"]);
+    const quantity = getValue(row, ["quantity", "qty", "stock"]);
+    const location = getValue(row, ["location"]);
+    const partyName = getValue(row, ["partyname", "party", "supplier", "suppliername"]);
+
+    return {
+      name,
+      brand: brand || undefined,
+      hsn: hsn || undefined,
+      unit: unit || undefined,
+      gstPercent: gstPercent ? parseNumber(gstPercent) : 0,
+      costPrice: costPrice ? parseNumber(costPrice) : 0,
+      sellingPrice: sellingPrice ? parseNumber(sellingPrice) : 0,
+      margin: margin ? parseNumber(margin) : 0,
+      discount: discount ? parseNumber(discount) : 0,
+      quantity: quantity ? parseNumber(quantity) : 0,
+      location: location || undefined,
+      partyName: partyName || undefined,
+    };
+  };
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.items.delete(id),
@@ -125,6 +188,37 @@ export default function InventoryList() {
       toast({ variant: "destructive", title: "Error", description: error.message });
     }
   });
+
+  const bulkUploadMutation = useMutation({
+    mutationFn: (rows: ItemBulkRow[]) => api.items.bulkImport(rows),
+    onSuccess: (result: { created: number; skipped: number; failed: number }) => {
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      toast({
+        title: "Bulk Upload Complete",
+        description: `Created ${result.created}, skipped ${result.skipped}, failed ${result.failed}.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    }
+  });
+
+  const handleBulkFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    const rows = parseCsv(text);
+    const mapped = rows.map(mapItemRow).filter(Boolean) as ItemBulkRow[];
+
+    if (mapped.length === 0) {
+      toast({ variant: "destructive", title: "No rows found", description: "Check your CSV headers and data." });
+      event.target.value = "";
+      return;
+    }
+
+    bulkUploadMutation.mutate(mapped);
+    event.target.value = "";
+  };
 
   const getPartyName = (partyId?: string | null) => {
     if (!partyId) return "-";
@@ -146,6 +240,22 @@ export default function InventoryList() {
           <p className="text-muted-foreground mt-1">Manage stock, prices, and brands.</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            ref={bulkFileRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleBulkFile}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => bulkFileRef.current?.click()}
+            disabled={bulkUploadMutation.isPending}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            {bulkUploadMutation.isPending ? "Uploading..." : "Bulk Upload (CSV)"}
+          </Button>
           <Link href="/inventory/scan">
             <Button variant="outline" data-testid="button-scan-bill">
               <Camera className="mr-2 h-4 w-4" /> Scan Bill
@@ -166,6 +276,9 @@ export default function InventoryList() {
             data-testid="input-search"
           />
         </div>
+        <p className="text-xs text-muted-foreground">
+          CSV columns: name, brand, hsn, unit, gstPercent, costPrice, sellingPrice, quantity, location, partyName.
+        </p>
         <Button variant="outline" size="icon" data-testid="button-qr-scan">
             <QrCode className="h-4 w-4" />
         </Button>

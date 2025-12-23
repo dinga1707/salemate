@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import { storage } from "./storage";
 import { db } from "./db";
 import { 
@@ -9,6 +10,7 @@ import {
   insertItemSchema,
   insertInvoiceSchema,
   insertInvoiceLineItemSchema,
+  insertPartySchema,
   insertTransferRequestSchema,
   insertTransferLineItemSchema,
   signupSchema,
@@ -19,6 +21,8 @@ import {
 import { z } from "zod";
 import { startOfMonth, endOfMonth } from "date-fns";
 import { scanBillImage } from "./openai";
+import { otpRequests } from "@shared/schema";
+import { and, desc, eq } from "drizzle-orm";
 
 declare module "express-session" {
   interface SessionData {
@@ -56,6 +60,101 @@ export async function registerRoutes(
 
   // ============ AUTHENTICATION ============
 
+  const signupOtpPurpose = "SIGNUP";
+  const hashOtp = (otp: string) => crypto.createHash("sha256").update(otp).digest("hex");
+
+  const getLatestOtp = async (phone: string, purpose: string) => {
+    const [record] = await db
+      .select()
+      .from(otpRequests)
+      .where(and(eq(otpRequests.phone, phone), eq(otpRequests.purpose, purpose)))
+      .orderBy(desc(otpRequests.createdAt))
+      .limit(1);
+    return record;
+  };
+
+  const deleteOtp = async (phone: string, purpose: string) => {
+    await db.delete(otpRequests).where(and(eq(otpRequests.phone, phone), eq(otpRequests.purpose, purpose)));
+  };
+
+  const signupOtpSchema = z.object({
+    phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
+  });
+
+  const signupVerifySchema = z.object({
+    phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
+    otp: z.string().regex(/^\d{6}$/, "Enter the 6-digit OTP"),
+  });
+
+  const checkPhoneSchema = z.object({
+    phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
+  });
+
+  // Check if phone exists (signup helper)
+  app.post("/api/auth/check-phone", async (req, res) => {
+    try {
+      const { phone } = checkPhoneSchema.parse(req.body);
+      const existing = await storage.getStoreByPhone(phone);
+      res.json({ exists: !!existing });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to check phone" });
+    }
+  });
+
+  // Sign up - request OTP
+  app.post("/api/auth/signup-otp", async (req, res) => {
+    try {
+      const { phone } = signupOtpSchema.parse(req.body);
+      const existing = await storage.getStoreByPhone(phone);
+      if (existing) {
+        return res.status(400).json({ error: "This mobile number is already registered" });
+      }
+
+      const otp = crypto.randomInt(100000, 1000000).toString();
+      const otpHash = hashOtp(otp);
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      await deleteOtp(phone, signupOtpPurpose);
+      await db.insert(otpRequests).values({
+        phone,
+        purpose: signupOtpPurpose,
+        otpHash,
+        expiresAt,
+      });
+
+      const payload: any = { success: true };
+      if (process.env.NODE_ENV !== "production") {
+        payload.otp = otp;
+      }
+      res.json(payload);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to send OTP" });
+    }
+  });
+
+  // Sign up - verify OTP
+  app.post("/api/auth/signup-verify", async (req, res) => {
+    try {
+      const { phone, otp } = signupVerifySchema.parse(req.body);
+      const record = await getLatestOtp(phone, signupOtpPurpose);
+      if (!record) {
+        return res.status(400).json({ error: "OTP not found" });
+      }
+
+      if (new Date(record.expiresAt).getTime() < Date.now()) {
+        return res.status(400).json({ error: "OTP expired" });
+      }
+
+      if (hashOtp(otp) !== record.otpHash) {
+        return res.status(400).json({ error: "Invalid OTP" });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to verify OTP" });
+    }
+  });
+
   // Sign up
   app.post("/api/auth/signup", async (req, res) => {
     try {
@@ -67,16 +166,31 @@ export async function registerRoutes(
         return res.status(400).json({ error: "This mobile number is already registered" });
       }
 
+      const record = await getLatestOtp(data.phone, signupOtpPurpose);
+      if (!record) {
+        return res.status(400).json({ error: "OTP verification required" });
+      }
+      if (new Date(record.expiresAt).getTime() < Date.now()) {
+        return res.status(400).json({ error: "OTP expired" });
+      }
+      if (hashOtp(data.otp) !== record.otpHash) {
+        return res.status(400).json({ error: "Invalid OTP" });
+      }
+
+      const { otp, ...storeData } = data;
+
       // Hash password
       const hashedPassword = await bcrypt.hash(data.password, 10);
 
       // Create store
       const store = await storage.createStore({
-        ...data,
+        ...storeData,
         password: hashedPassword,
         plan: "FREE",
         templateId: "default",
       });
+
+      await deleteOtp(data.phone, signupOtpPurpose);
 
       // Set session
       req.session.storeId = store.id;
@@ -132,6 +246,109 @@ export async function registerRoutes(
     });
   });
 
+  const forgotPasswordSchema = z.object({
+    phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
+  });
+
+  const verifyOtpSchema = z.object({
+    phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
+    otp: z.string().regex(/^\d{6}$/, "Enter the 6-digit OTP"),
+  });
+
+  const resetPasswordSchema = z.object({
+    phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
+    otp: z.string().regex(/^\d{6}$/, "Enter the 6-digit OTP"),
+    newPassword: z.string().min(6, "Password must be at least 6 characters"),
+  });
+
+  // Forgot password (request OTP)
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { phone } = forgotPasswordSchema.parse(req.body);
+      const store = await storage.getStoreByPhone(phone);
+
+      // Always return success to avoid user enumeration
+      if (!store) {
+        return res.json({ success: true });
+      }
+
+      const otp = crypto.randomInt(100000, 1000000).toString();
+      const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      await storage.updateStoreProfile(store.id, {
+        resetOtpHash: otpHash,
+        resetOtpExpiresAt: expiresAt,
+      });
+
+      const payload: any = { success: true };
+      if (process.env.NODE_ENV !== "production") {
+        payload.otp = otp;
+      }
+
+      res.json(payload);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to request OTP" });
+    }
+  });
+
+  // Verify OTP
+  app.post("/api/auth/verify-otp", async (req, res) => {
+    try {
+      const { phone, otp } = verifyOtpSchema.parse(req.body);
+      const store = await storage.getStoreByPhone(phone);
+      if (!store?.resetOtpHash || !store?.resetOtpExpiresAt) {
+        return res.status(400).json({ error: "Invalid or expired OTP" });
+      }
+
+      const expiresAt = new Date(store.resetOtpExpiresAt);
+      if (expiresAt.getTime() < Date.now()) {
+        return res.status(400).json({ error: "OTP expired" });
+      }
+
+      const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+      if (otpHash !== store.resetOtpHash) {
+        return res.status(400).json({ error: "Invalid OTP" });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to verify OTP" });
+    }
+  });
+
+  // Reset password with OTP
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { phone, otp, newPassword } = resetPasswordSchema.parse(req.body);
+      const store = await storage.getStoreByPhone(phone);
+      if (!store?.resetOtpHash || !store?.resetOtpExpiresAt) {
+        return res.status(400).json({ error: "Invalid or expired OTP" });
+      }
+
+      const expiresAt = new Date(store.resetOtpExpiresAt);
+      if (expiresAt.getTime() < Date.now()) {
+        return res.status(400).json({ error: "OTP expired" });
+      }
+
+      const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+      if (otpHash !== store.resetOtpHash) {
+        return res.status(400).json({ error: "Invalid OTP" });
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await storage.updateStoreProfile(store.id, {
+        password: hashedPassword,
+        resetOtpHash: null,
+        resetOtpExpiresAt: null,
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to reset password" });
+    }
+  });
+
   // Get current session
   app.get("/api/auth/me", async (req, res) => {
     try {
@@ -177,6 +394,28 @@ export async function registerRoutes(
   const getSessionStore = async (req: Request) => {
     if (!req.session.storeId) return null;
     return storage.getStoreProfile(req.session.storeId);
+  };
+
+  const normalizeText = (value: any) => {
+    const text = String(value ?? "").trim();
+    return text.length > 0 ? text : undefined;
+  };
+
+  const toNumber = (value: any) => {
+    const cleaned = String(value ?? "").replace(/[^0-9.-]/g, "");
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const toNonNegativeNumber = (value: any) => Math.max(0, toNumber(value));
+  const toNonNegativeInt = (value: any) => Math.max(0, Math.floor(toNumber(value)));
+
+  const normalizePartyType = (value: any) => {
+    const normalized = String(value ?? "").toLowerCase();
+    if (normalized.includes("both")) return "BOTH";
+    if (normalized.startsWith("cust")) return "CUSTOMER";
+    if (normalized.startsWith("supp")) return "SUPPLIER";
+    return "SUPPLIER";
   };
 
   // Update store profile (current user only)
@@ -263,6 +502,65 @@ export async function registerRoutes(
     }
   });
 
+  // Bulk upload parties (CSV)
+  app.post("/api/parties/bulk", async (req, res) => {
+    try {
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { rows } = req.body;
+      if (!rows || !Array.isArray(rows)) {
+        return res.status(400).json({ error: "Rows array is required" });
+      }
+
+      const existing = await storage.getParties(store.id);
+      const existingNames = new Set(existing.map((party) => party.name.trim().toLowerCase()));
+      let created = 0;
+      let skipped = 0;
+      let failed = 0;
+
+      for (const row of rows) {
+        const name = normalizeText(row?.name);
+        if (!name) {
+          failed += 1;
+          continue;
+        }
+        const key = name.toLowerCase();
+        if (existingNames.has(key)) {
+          skipped += 1;
+          continue;
+        }
+
+        const partyData = {
+          storeId: store.id,
+          name,
+          gstin: normalizeText(row?.gstin),
+          phone: normalizeText(row?.phone),
+          address: normalizeText(row?.address),
+          type: normalizePartyType(row?.type),
+          toPay: String(toNonNegativeNumber(row?.toPay)),
+          toReceive: String(toNonNegativeNumber(row?.toReceive)),
+        };
+
+        try {
+          const validated = insertPartySchema.parse(partyData);
+          await storage.createParty(validated);
+          existingNames.add(key);
+          created += 1;
+        } catch (error) {
+          failed += 1;
+        }
+      }
+
+      res.json({ created, skipped, failed });
+    } catch (error) {
+      console.error("Error bulk uploading parties:", error);
+      res.status(400).json({ error: "Failed to upload parties" });
+    }
+  });
+
   // Create party
   app.post("/api/parties", async (req, res) => {
     try {
@@ -322,6 +620,78 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching items:", error);
       res.status(500).json({ error: "Failed to fetch items" });
+    }
+  });
+
+  // Bulk upload items (CSV)
+  app.post("/api/items/bulk-import", async (req, res) => {
+    try {
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { rows } = req.body;
+      if (!rows || !Array.isArray(rows)) {
+        return res.status(400).json({ error: "Rows array is required" });
+      }
+
+      const existingItems = await storage.getItems(store.id);
+      const existingNames = new Set(existingItems.map((item) => item.name.trim().toLowerCase()));
+      const partyList = await storage.getParties(store.id);
+      const partyMap = new Map(
+        partyList.map((party) => [party.name.trim().toLowerCase(), party.id])
+      );
+
+      let created = 0;
+      let skipped = 0;
+      let failed = 0;
+
+      for (const row of rows) {
+        const name = normalizeText(row?.name);
+        if (!name) {
+          failed += 1;
+          continue;
+        }
+        const key = name.toLowerCase();
+        if (existingNames.has(key)) {
+          skipped += 1;
+          continue;
+        }
+
+        const partyName = normalizeText(row?.partyName);
+        const partyId = partyName ? partyMap.get(partyName.toLowerCase()) : undefined;
+
+        const itemData = {
+          storeId: store.id,
+          partyId,
+          name,
+          brand: normalizeText(row?.brand),
+          hsn: normalizeText(row?.hsn),
+          unit: normalizeText(row?.unit) || "pcs",
+          gstPercent: String(toNonNegativeNumber(row?.gstPercent)),
+          costPrice: String(toNonNegativeNumber(row?.costPrice)),
+          margin: String(toNonNegativeNumber(row?.margin)),
+          sellingPrice: String(toNonNegativeNumber(row?.sellingPrice)),
+          discount: String(toNonNegativeNumber(row?.discount)),
+          quantity: toNonNegativeInt(row?.quantity),
+          location: normalizeText(row?.location),
+        };
+
+        try {
+          const validated = insertItemSchema.parse(itemData);
+          await storage.createItem(validated);
+          existingNames.add(key);
+          created += 1;
+        } catch (error) {
+          failed += 1;
+        }
+      }
+
+      res.json({ created, skipped, failed });
+    } catch (error) {
+      console.error("Error bulk uploading items:", error);
+      res.status(400).json({ error: "Failed to upload items" });
     }
   });
 

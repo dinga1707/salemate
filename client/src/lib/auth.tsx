@@ -10,7 +10,15 @@ interface StoreProfile {
   gstin?: string;
   email?: string;
   address?: string;
-  shopPhoto?: string;
+  state?: string;
+  city?: string;
+  pincode?: string;
+  businessType?: string;
+  panNumber?: string;
+  eInvoiceEnabled?: boolean;
+  signaturePhoto?: string;
+  logo?: string;
+  ownerPhoto?: string;
   plan: string;
   templateId: string;
   createdAt: string;
@@ -53,12 +61,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signinMutation = useMutation({
     mutationFn: (data: SigninData) => api.auth.signin(data),
     onSuccess: (data) => {
+      queryClient.setQueryData(["auth", "me"], data || null);
       // Save last logged-in user info to localStorage for quick login
       if (data) {
         localStorage.setItem("lastUser", JSON.stringify({
           phone: data.phone,
           name: data.ownerName || data.name,
-          shopPhoto: data.shopPhoto,
+          logo: data.logo,
+          ownerPhoto: data.ownerPhoto,
         }));
       }
       queryClient.invalidateQueries({ queryKey: ["auth"] });
@@ -68,7 +78,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signoutMutation = useMutation({
     mutationFn: () => api.auth.signout(),
     onSuccess: () => {
-      queryClient.clear();
+      queryClient.setQueryData(["auth", "me"], null);
+      queryClient.invalidateQueries({ queryKey: ["auth"] });
     },
   });
 
