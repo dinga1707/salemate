@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -44,12 +44,13 @@ const settingsNav = [
   { id: "pricing", label: "Pricing", icon: DollarSign },
   { id: "refer", label: "Refer & Earn", icon: Gift },
   { id: "help", label: "Help And Support", icon: HelpCircle },
-  { id: "logout", label: "Logout", icon: LogOut },
+  { id: "logout", label: "Sign Out", icon: LogOut },
 ];
 
 export default function Settings() {
+  const [, setLocation] = useLocation();
   const [active, setActive] = useState("manage-business");
-  const { user: store } = useAuth();
+  const { user: store, signout } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [ownerName, setOwnerName] = useState("");
@@ -208,7 +209,14 @@ export default function Settings() {
                         ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
                         : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                     )}
-                    onClick={() => setActive(item.id)}
+                    onClick={async () => {
+                      if (item.id === "logout") {
+                        await signout();
+                        setLocation("/signin");
+                        return;
+                      }
+                      setActive(item.id);
+                    }}
                   >
                     <item.icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
                     {item.label}

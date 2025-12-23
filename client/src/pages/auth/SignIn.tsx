@@ -181,6 +181,14 @@ export default function SignIn() {
                 )}
               />
 
+              <div className="text-right">
+                <Link
+                  href="/forgot-password"
+                  className="text-sm text-primary font-medium hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <Button
                 type="submit"
                 className="w-full"

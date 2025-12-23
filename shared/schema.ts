@@ -46,6 +46,17 @@ export const storeProfiles = pgTable("store_profiles", {
   ownerPhoto: text("owner_photo"),
   plan: subscriptionPlanEnum("plan").notNull().default("FREE"),
   templateId: text("template_id").notNull().default("default"),
+  resetOtpHash: text("reset_otp_hash"),
+  resetOtpExpiresAt: timestamp("reset_otp_expires_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const otpRequests = pgTable("otp_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  phone: text("phone").notNull(),
+  purpose: text("purpose").notNull(),
+  otpHash: text("otp_hash").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -137,6 +148,8 @@ export const transferLineItems = pgTable("transfer_line_items", {
 export const insertStoreProfileSchema = createInsertSchema(storeProfiles).omit({
   id: true,
   createdAt: true,
+  resetOtpHash: true,
+  resetOtpExpiresAt: true,
 });
 
 export const signupSchema = z.object({
@@ -144,6 +157,7 @@ export const signupSchema = z.object({
   phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   name: z.string().min(2, "Store name must be at least 2 characters"),
+  otp: z.string().regex(/^\d{6}$/, "Enter the 6-digit OTP"),
   gstin: z.string().optional(),
   email: z.string().email("Enter a valid email").optional().or(z.literal("")),
   address: z.string().optional(),

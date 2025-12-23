@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import { storage } from "./storage";
 import { db } from "./db";
 import { 
@@ -20,6 +21,8 @@ import {
 import { z } from "zod";
 import { startOfMonth, endOfMonth } from "date-fns";
 import { scanBillImage } from "./openai";
+import { otpRequests } from "@shared/schema";
+import { and, desc, eq } from "drizzle-orm";
 
 declare module "express-session" {
   interface SessionData {
@@ -57,6 +60,101 @@ export async function registerRoutes(
 
   // ============ AUTHENTICATION ============
 
+  const signupOtpPurpose = "SIGNUP";
+  const hashOtp = (otp: string) => crypto.createHash("sha256").update(otp).digest("hex");
+
+  const getLatestOtp = async (phone: string, purpose: string) => {
+    const [record] = await db
+      .select()
+      .from(otpRequests)
+      .where(and(eq(otpRequests.phone, phone), eq(otpRequests.purpose, purpose)))
+      .orderBy(desc(otpRequests.createdAt))
+      .limit(1);
+    return record;
+  };
+
+  const deleteOtp = async (phone: string, purpose: string) => {
+    await db.delete(otpRequests).where(and(eq(otpRequests.phone, phone), eq(otpRequests.purpose, purpose)));
+  };
+
+  const signupOtpSchema = z.object({
+    phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
+  });
+
+  const signupVerifySchema = z.object({
+    phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
+    otp: z.string().regex(/^\d{6}$/, "Enter the 6-digit OTP"),
+  });
+
+  const checkPhoneSchema = z.object({
+    phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
+  });
+
+  // Check if phone exists (signup helper)
+  app.post("/api/auth/check-phone", async (req, res) => {
+    try {
+      const { phone } = checkPhoneSchema.parse(req.body);
+      const existing = await storage.getStoreByPhone(phone);
+      res.json({ exists: !!existing });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to check phone" });
+    }
+  });
+
+  // Sign up - request OTP
+  app.post("/api/auth/signup-otp", async (req, res) => {
+    try {
+      const { phone } = signupOtpSchema.parse(req.body);
+      const existing = await storage.getStoreByPhone(phone);
+      if (existing) {
+        return res.status(400).json({ error: "This mobile number is already registered" });
+      }
+
+      const otp = crypto.randomInt(100000, 1000000).toString();
+      const otpHash = hashOtp(otp);
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      await deleteOtp(phone, signupOtpPurpose);
+      await db.insert(otpRequests).values({
+        phone,
+        purpose: signupOtpPurpose,
+        otpHash,
+        expiresAt,
+      });
+
+      const payload: any = { success: true };
+      if (process.env.NODE_ENV !== "production") {
+        payload.otp = otp;
+      }
+      res.json(payload);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to send OTP" });
+    }
+  });
+
+  // Sign up - verify OTP
+  app.post("/api/auth/signup-verify", async (req, res) => {
+    try {
+      const { phone, otp } = signupVerifySchema.parse(req.body);
+      const record = await getLatestOtp(phone, signupOtpPurpose);
+      if (!record) {
+        return res.status(400).json({ error: "OTP not found" });
+      }
+
+      if (new Date(record.expiresAt).getTime() < Date.now()) {
+        return res.status(400).json({ error: "OTP expired" });
+      }
+
+      if (hashOtp(otp) !== record.otpHash) {
+        return res.status(400).json({ error: "Invalid OTP" });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to verify OTP" });
+    }
+  });
+
   // Sign up
   app.post("/api/auth/signup", async (req, res) => {
     try {
@@ -68,16 +166,31 @@ export async function registerRoutes(
         return res.status(400).json({ error: "This mobile number is already registered" });
       }
 
+      const record = await getLatestOtp(data.phone, signupOtpPurpose);
+      if (!record) {
+        return res.status(400).json({ error: "OTP verification required" });
+      }
+      if (new Date(record.expiresAt).getTime() < Date.now()) {
+        return res.status(400).json({ error: "OTP expired" });
+      }
+      if (hashOtp(data.otp) !== record.otpHash) {
+        return res.status(400).json({ error: "Invalid OTP" });
+      }
+
+      const { otp, ...storeData } = data;
+
       // Hash password
       const hashedPassword = await bcrypt.hash(data.password, 10);
 
       // Create store
       const store = await storage.createStore({
-        ...data,
+        ...storeData,
         password: hashedPassword,
         plan: "FREE",
         templateId: "default",
       });
+
+      await deleteOtp(data.phone, signupOtpPurpose);
 
       // Set session
       req.session.storeId = store.id;
@@ -131,6 +244,109 @@ export async function registerRoutes(
       }
       res.json({ success: true });
     });
+  });
+
+  const forgotPasswordSchema = z.object({
+    phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
+  });
+
+  const verifyOtpSchema = z.object({
+    phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
+    otp: z.string().regex(/^\d{6}$/, "Enter the 6-digit OTP"),
+  });
+
+  const resetPasswordSchema = z.object({
+    phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
+    otp: z.string().regex(/^\d{6}$/, "Enter the 6-digit OTP"),
+    newPassword: z.string().min(6, "Password must be at least 6 characters"),
+  });
+
+  // Forgot password (request OTP)
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { phone } = forgotPasswordSchema.parse(req.body);
+      const store = await storage.getStoreByPhone(phone);
+
+      // Always return success to avoid user enumeration
+      if (!store) {
+        return res.json({ success: true });
+      }
+
+      const otp = crypto.randomInt(100000, 1000000).toString();
+      const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      await storage.updateStoreProfile(store.id, {
+        resetOtpHash: otpHash,
+        resetOtpExpiresAt: expiresAt,
+      });
+
+      const payload: any = { success: true };
+      if (process.env.NODE_ENV !== "production") {
+        payload.otp = otp;
+      }
+
+      res.json(payload);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to request OTP" });
+    }
+  });
+
+  // Verify OTP
+  app.post("/api/auth/verify-otp", async (req, res) => {
+    try {
+      const { phone, otp } = verifyOtpSchema.parse(req.body);
+      const store = await storage.getStoreByPhone(phone);
+      if (!store?.resetOtpHash || !store?.resetOtpExpiresAt) {
+        return res.status(400).json({ error: "Invalid or expired OTP" });
+      }
+
+      const expiresAt = new Date(store.resetOtpExpiresAt);
+      if (expiresAt.getTime() < Date.now()) {
+        return res.status(400).json({ error: "OTP expired" });
+      }
+
+      const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+      if (otpHash !== store.resetOtpHash) {
+        return res.status(400).json({ error: "Invalid OTP" });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to verify OTP" });
+    }
+  });
+
+  // Reset password with OTP
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { phone, otp, newPassword } = resetPasswordSchema.parse(req.body);
+      const store = await storage.getStoreByPhone(phone);
+      if (!store?.resetOtpHash || !store?.resetOtpExpiresAt) {
+        return res.status(400).json({ error: "Invalid or expired OTP" });
+      }
+
+      const expiresAt = new Date(store.resetOtpExpiresAt);
+      if (expiresAt.getTime() < Date.now()) {
+        return res.status(400).json({ error: "OTP expired" });
+      }
+
+      const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+      if (otpHash !== store.resetOtpHash) {
+        return res.status(400).json({ error: "Invalid OTP" });
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await storage.updateStoreProfile(store.id, {
+        password: hashedPassword,
+        resetOtpHash: null,
+        resetOtpExpiresAt: null,
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to reset password" });
+    }
   });
 
   // Get current session

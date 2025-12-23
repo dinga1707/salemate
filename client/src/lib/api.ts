@@ -27,6 +27,7 @@ export interface SignupData {
   phone: string;
   password: string;
   name: string;
+  otp: string;
   gstin?: string;
   email?: string;
   address?: string;
@@ -54,6 +55,30 @@ export const api = {
       method: 'POST',
     }),
     me: () => fetchAPI('/api/auth/me'),
+    forgotPassword: (phone: string) => fetchAPI('/api/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ phone }),
+    }),
+    verifyOtp: (phone: string, otp: string) => fetchAPI('/api/auth/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify({ phone, otp }),
+    }),
+    resetPassword: (phone: string, otp: string, newPassword: string) => fetchAPI('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ phone, otp, newPassword }),
+    }),
+    signupOtp: (phone: string) => fetchAPI('/api/auth/signup-otp', {
+      method: 'POST',
+      body: JSON.stringify({ phone }),
+    }),
+    signupVerify: (phone: string, otp: string) => fetchAPI('/api/auth/signup-verify', {
+      method: 'POST',
+      body: JSON.stringify({ phone, otp }),
+    }),
+    checkPhone: (phone: string) => fetchAPI('/api/auth/check-phone', {
+      method: 'POST',
+      body: JSON.stringify({ phone }),
+    }),
   },
 
   // Store Profile
