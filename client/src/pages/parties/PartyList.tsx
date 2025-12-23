@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { api } from "@/lib/api";
+import { parseCsv, type CsvRow } from "@/lib/csv";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,7 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Search, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Pencil, Trash2, Upload } from "lucide-react";
 
 const partyFormSchema = z.object({
   name: z.string().min(1, "Party name is required"),
@@ -53,6 +54,16 @@ interface Party {
   toReceive?: string | number | null;
 }
 
+interface PartyBulkRow {
+  name: string;
+  gstin?: string;
+  phone?: string;
+  address?: string;
+  type?: "CUSTOMER" | "SUPPLIER" | "BOTH";
+  toPay?: number;
+  toReceive?: number;
+}
+
 const partyTypeLabel = (type?: Party["type"]) => {
   if (type === "CUSTOMER") return "Customer";
   if (type === "BOTH") return "Customer & Supplier";
@@ -71,6 +82,51 @@ export default function PartyList() {
   const [isOpen, setIsOpen] = useState(false);
   const [editParty, setEditParty] = useState<Party | null>(null);
   const [deleteParty, setDeleteParty] = useState<Party | null>(null);
+  const bulkFileRef = useRef<HTMLInputElement>(null);
+
+  const getValue = (row: CsvRow, keys: string[]) => {
+    for (const key of keys) {
+      const value = row[key];
+      if (value && value.trim().length > 0) return value.trim();
+    }
+    return "";
+  };
+
+  const parseNumber = (value: string) => {
+    const cleaned = value.replace(/[^0-9.-]/g, "");
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const normalizeType = (value: string): PartyBulkRow["type"] => {
+    const normalized = value.toLowerCase();
+    if (normalized.includes("both")) return "BOTH";
+    if (normalized.startsWith("cust")) return "CUSTOMER";
+    if (normalized.startsWith("supp")) return "SUPPLIER";
+    return "SUPPLIER";
+  };
+
+  const mapPartyRow = (row: CsvRow): PartyBulkRow | null => {
+    const name = getValue(row, ["name", "partyname", "customername", "suppliername"]);
+    if (!name) return null;
+
+    const gstin = getValue(row, ["gstin", "gstnumber"]);
+    const phone = getValue(row, ["phone", "mobile", "mobilenumber"]);
+    const address = getValue(row, ["address"]);
+    const typeValue = getValue(row, ["type", "partytype", "customertype"]);
+    const toPayValue = getValue(row, ["topay", "pay", "balancepay"]);
+    const toReceiveValue = getValue(row, ["toreceive", "receive", "balancereceive"]);
+
+    return {
+      name,
+      gstin: gstin || undefined,
+      phone: phone || undefined,
+      address: address || undefined,
+      type: typeValue ? normalizeType(typeValue) : "SUPPLIER",
+      toPay: toPayValue ? parseNumber(toPayValue) : 0,
+      toReceive: toReceiveValue ? parseNumber(toReceiveValue) : 0,
+    };
+  };
 
   const createMutation = useMutation({
     mutationFn: (data: PartyFormData) => api.parties.create(data),
@@ -84,6 +140,37 @@ export default function PartyList() {
       toast({ variant: "destructive", title: "Error", description: error.message });
     },
   });
+
+  const bulkUploadMutation = useMutation({
+    mutationFn: (rows: PartyBulkRow[]) => api.parties.bulk(rows),
+    onSuccess: (result: { created: number; skipped: number; failed: number }) => {
+      queryClient.invalidateQueries({ queryKey: ["parties"] });
+      toast({
+        title: "Bulk Upload Complete",
+        description: `Created ${result.created}, skipped ${result.skipped}, failed ${result.failed}.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
+  const handleBulkFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    const rows = parseCsv(text);
+    const mapped = rows.map(mapPartyRow).filter(Boolean) as PartyBulkRow[];
+
+    if (mapped.length === 0) {
+      toast({ variant: "destructive", title: "No rows found", description: "Check your CSV headers and data." });
+      event.target.value = "";
+      return;
+    }
+
+    bulkUploadMutation.mutate(mapped);
+    event.target.value = "";
+  };
 
   const updateMutation = useMutation({
     mutationFn: (data: PartyFormData) => api.parties.update(editParty!.id, data),
@@ -164,7 +251,24 @@ export default function PartyList() {
           <h1 className="text-3xl font-bold tracking-tight">Parties</h1>
           <p className="text-muted-foreground mt-1">Manage customers and suppliers.</p>
         </div>
-        <Sheet open={isOpen} onOpenChange={setIsOpen}>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            ref={bulkFileRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleBulkFile}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => bulkFileRef.current?.click()}
+            disabled={bulkUploadMutation.isPending}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            {bulkUploadMutation.isPending ? "Uploading..." : "Bulk Upload (CSV)"}
+          </Button>
+          <Sheet open={isOpen} onOpenChange={setIsOpen}>
           <SheetTrigger asChild>
             <Button data-testid="button-add-party">
               <Plus className="mr-2 h-4 w-4" /> Add Party
@@ -292,7 +396,8 @@ export default function PartyList() {
               </form>
             </Form>
           </SheetContent>
-        </Sheet>
+          </Sheet>
+        </div>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -306,6 +411,9 @@ export default function PartyList() {
             data-testid="input-search-party"
           />
         </div>
+        <p className="text-xs text-muted-foreground">
+          CSV columns: name, gstin, phone, address, type, toPay, toReceive.
+        </p>
       </div>
 
       <div className="rounded-md border bg-card overflow-x-auto">

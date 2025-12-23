@@ -9,6 +9,7 @@ import {
   insertItemSchema,
   insertInvoiceSchema,
   insertInvoiceLineItemSchema,
+  insertPartySchema,
   insertTransferRequestSchema,
   insertTransferLineItemSchema,
   signupSchema,
@@ -179,6 +180,28 @@ export async function registerRoutes(
     return storage.getStoreProfile(req.session.storeId);
   };
 
+  const normalizeText = (value: any) => {
+    const text = String(value ?? "").trim();
+    return text.length > 0 ? text : undefined;
+  };
+
+  const toNumber = (value: any) => {
+    const cleaned = String(value ?? "").replace(/[^0-9.-]/g, "");
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const toNonNegativeNumber = (value: any) => Math.max(0, toNumber(value));
+  const toNonNegativeInt = (value: any) => Math.max(0, Math.floor(toNumber(value)));
+
+  const normalizePartyType = (value: any) => {
+    const normalized = String(value ?? "").toLowerCase();
+    if (normalized.includes("both")) return "BOTH";
+    if (normalized.startsWith("cust")) return "CUSTOMER";
+    if (normalized.startsWith("supp")) return "SUPPLIER";
+    return "SUPPLIER";
+  };
+
   // Update store profile (current user only)
   app.patch("/api/store/:id", async (req, res) => {
     try {
@@ -263,6 +286,65 @@ export async function registerRoutes(
     }
   });
 
+  // Bulk upload parties (CSV)
+  app.post("/api/parties/bulk", async (req, res) => {
+    try {
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { rows } = req.body;
+      if (!rows || !Array.isArray(rows)) {
+        return res.status(400).json({ error: "Rows array is required" });
+      }
+
+      const existing = await storage.getParties(store.id);
+      const existingNames = new Set(existing.map((party) => party.name.trim().toLowerCase()));
+      let created = 0;
+      let skipped = 0;
+      let failed = 0;
+
+      for (const row of rows) {
+        const name = normalizeText(row?.name);
+        if (!name) {
+          failed += 1;
+          continue;
+        }
+        const key = name.toLowerCase();
+        if (existingNames.has(key)) {
+          skipped += 1;
+          continue;
+        }
+
+        const partyData = {
+          storeId: store.id,
+          name,
+          gstin: normalizeText(row?.gstin),
+          phone: normalizeText(row?.phone),
+          address: normalizeText(row?.address),
+          type: normalizePartyType(row?.type),
+          toPay: String(toNonNegativeNumber(row?.toPay)),
+          toReceive: String(toNonNegativeNumber(row?.toReceive)),
+        };
+
+        try {
+          const validated = insertPartySchema.parse(partyData);
+          await storage.createParty(validated);
+          existingNames.add(key);
+          created += 1;
+        } catch (error) {
+          failed += 1;
+        }
+      }
+
+      res.json({ created, skipped, failed });
+    } catch (error) {
+      console.error("Error bulk uploading parties:", error);
+      res.status(400).json({ error: "Failed to upload parties" });
+    }
+  });
+
   // Create party
   app.post("/api/parties", async (req, res) => {
     try {
@@ -322,6 +404,78 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching items:", error);
       res.status(500).json({ error: "Failed to fetch items" });
+    }
+  });
+
+  // Bulk upload items (CSV)
+  app.post("/api/items/bulk-import", async (req, res) => {
+    try {
+      const store = await getSessionStore(req);
+      if (!store) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { rows } = req.body;
+      if (!rows || !Array.isArray(rows)) {
+        return res.status(400).json({ error: "Rows array is required" });
+      }
+
+      const existingItems = await storage.getItems(store.id);
+      const existingNames = new Set(existingItems.map((item) => item.name.trim().toLowerCase()));
+      const partyList = await storage.getParties(store.id);
+      const partyMap = new Map(
+        partyList.map((party) => [party.name.trim().toLowerCase(), party.id])
+      );
+
+      let created = 0;
+      let skipped = 0;
+      let failed = 0;
+
+      for (const row of rows) {
+        const name = normalizeText(row?.name);
+        if (!name) {
+          failed += 1;
+          continue;
+        }
+        const key = name.toLowerCase();
+        if (existingNames.has(key)) {
+          skipped += 1;
+          continue;
+        }
+
+        const partyName = normalizeText(row?.partyName);
+        const partyId = partyName ? partyMap.get(partyName.toLowerCase()) : undefined;
+
+        const itemData = {
+          storeId: store.id,
+          partyId,
+          name,
+          brand: normalizeText(row?.brand),
+          hsn: normalizeText(row?.hsn),
+          unit: normalizeText(row?.unit) || "pcs",
+          gstPercent: String(toNonNegativeNumber(row?.gstPercent)),
+          costPrice: String(toNonNegativeNumber(row?.costPrice)),
+          margin: String(toNonNegativeNumber(row?.margin)),
+          sellingPrice: String(toNonNegativeNumber(row?.sellingPrice)),
+          discount: String(toNonNegativeNumber(row?.discount)),
+          quantity: toNonNegativeInt(row?.quantity),
+          location: normalizeText(row?.location),
+        };
+
+        try {
+          const validated = insertItemSchema.parse(itemData);
+          await storage.createItem(validated);
+          existingNames.add(key);
+          created += 1;
+        } catch (error) {
+          failed += 1;
+        }
+      }
+
+      res.json({ created, skipped, failed });
+    } catch (error) {
+      console.error("Error bulk uploading items:", error);
+      res.status(400).json({ error: "Failed to upload items" });
     }
   });
 

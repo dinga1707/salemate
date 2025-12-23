@@ -18,6 +18,7 @@ import TransferInvoice from "@/pages/transfers/TransferInvoice";
 import Subscription from "@/pages/subscription/Subscription";
 import Reports from "@/pages/reports/Reports";
 import PartyList from "@/pages/parties/PartyList";
+import Settings from "@/pages/settings/Settings";
 import SignUp from "@/pages/auth/SignUp";
 import SignIn from "@/pages/auth/SignIn";
 import { Loader2 } from "lucide-react";
@@ -150,6 +151,9 @@ function Router() {
             <PartyList />
           </AppShell>
         )} />
+      </Route>
+      <Route path="/settings">
+        <ProtectedRoute component={Settings} />
       </Route>
       <Route component={NotFound} />
     </Switch>

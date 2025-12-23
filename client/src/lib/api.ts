@@ -73,6 +73,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+    bulk: (rows: any[]) => fetchAPI('/api/parties/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ rows }),
+    }),
     update: (id: string, data: any) => fetchAPI(`/api/parties/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -89,6 +93,10 @@ export const api = {
     create: (data: any) => fetchAPI('/api/items', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+    bulkImport: (rows: any[]) => fetchAPI('/api/items/bulk-import', {
+      method: 'POST',
+      body: JSON.stringify({ rows }),
     }),
     update: (id: string, data: any) => fetchAPI(`/api/items/${id}`, {
       method: 'PATCH',
