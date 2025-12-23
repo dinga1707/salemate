@@ -270,7 +270,9 @@ export async function registerRoutes(
       if (!store) {
         return res.status(401).json({ error: "Not authenticated" });
       }
-      const partyData = { ...req.body, storeId: store.id };
+      const partyData: any = { ...req.body, storeId: store.id };
+      if (partyData.toPay !== undefined) partyData.toPay = String(partyData.toPay);
+      if (partyData.toReceive !== undefined) partyData.toReceive = String(partyData.toReceive);
       const party = await storage.createParty(partyData);
       res.status(201).json(party);
     } catch (error) {
@@ -283,7 +285,10 @@ export async function registerRoutes(
   app.patch("/api/parties/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const updated = await storage.updateParty(id, req.body);
+      const partyData: any = { ...req.body };
+      if (partyData.toPay !== undefined) partyData.toPay = String(partyData.toPay);
+      if (partyData.toReceive !== undefined) partyData.toReceive = String(partyData.toReceive);
+      const updated = await storage.updateParty(id, partyData);
       res.json(updated);
     } catch (error) {
       console.error("Error updating party:", error);

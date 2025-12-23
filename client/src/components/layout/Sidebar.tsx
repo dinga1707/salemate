@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Package, FileText, ArrowRightLeft, Settings, PieChart, LogOut, Store, CreditCard } from "lucide-react";
+import { LayoutDashboard, Package, FileText, ArrowRightLeft, Settings, PieChart, LogOut, Store, CreditCard, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ export default function Sidebar({ className, isMobile = false, onNavigate }: Sid
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/" },
     { icon: Package, label: "Stock / Inventory", href: "/inventory" },
+    { icon: Users, label: "Parties", href: "/parties" },
     { icon: FileText, label: "Billing", href: "/billing" },
     { icon: ArrowRightLeft, label: "Transfers", href: "/transfers" },
     { icon: PieChart, label: "Reports", href: "/reports" },
