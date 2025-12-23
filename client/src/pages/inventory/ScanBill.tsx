@@ -303,9 +303,9 @@ export default function ScanBill() {
   const selectedCount = scannedItems.filter(i => i.selected).length;
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+    <div className="space-y-6 max-w-5xl mx-auto px-4 sm:px-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
           <Button variant="ghost" size="icon" onClick={() => setLocation("/inventory")} data-testid="button-back">
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -480,7 +480,7 @@ export default function ScanBill() {
 
       {scannedItems.length > 0 && (
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Package className="h-5 w-5" /> Extracted Items
@@ -504,7 +504,8 @@ export default function ScanBill() {
             </Button>
           </CardHeader>
           <CardContent className="p-0">
-            <Table>
+            <div className="overflow-x-auto">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[40px]"></TableHead>
@@ -583,7 +584,8 @@ export default function ScanBill() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       )}

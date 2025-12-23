@@ -115,6 +115,7 @@ export default function CreateTransfer() {
   };
 
   const handleQuantityChange = (itemId: string, quantity: number) => {
+    if (!Number.isFinite(quantity) || quantity <= 0) return;
     setSelectedItems(prev => prev.map(item => 
       item.itemId === itemId 
         ? { ...item, quantity: Math.min(quantity, item.maxQuantity) }
@@ -172,8 +173,8 @@ export default function CreateTransfer() {
   const availableItems = myItems?.filter((item: any) => Number(item.quantity) > 0) || [];
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
-      <div className="flex items-center gap-4">
+    <div className="space-y-6 max-w-2xl mx-auto px-4 sm:px-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate("/transfers")} data-testid="button-back">
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -183,11 +184,11 @@ export default function CreateTransfer() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between px-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
         <StepIndicator step={1} current={step} label="Find Store" />
-        <div className="flex-1 h-0.5 bg-border mx-2" />
+        <div className="hidden sm:block flex-1 h-0.5 bg-border mx-2" />
         <StepIndicator step={2} current={step} label="Select Items" />
-        <div className="flex-1 h-0.5 bg-border mx-2" />
+        <div className="hidden sm:block flex-1 h-0.5 bg-border mx-2" />
         <StepIndicator step={3} current={step} label="Review" />
       </div>
 
@@ -271,7 +272,7 @@ export default function CreateTransfer() {
       {step === 2 && selectedStore && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <Package className="h-5 w-5" />
@@ -318,15 +319,21 @@ export default function CreateTransfer() {
                           </div>
                         </div>
                         {selected && (
-                          <div className="mt-3 pt-3 border-t grid grid-cols-4 gap-3">
+                          <div className="mt-3 pt-3 border-t grid grid-cols-2 sm:grid-cols-4 gap-3">
                             <div>
                               <Label className="text-xs text-muted-foreground">Qty</Label>
                               <Input
                                 type="number"
-                                min={1}
+                                inputMode="decimal"
+                                min="0.001"
+                                step="0.001"
                                 max={item.quantity}
                                 value={selected.quantity}
-                                onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 1)}
+                                onChange={(e) => {
+                                  const value = parseFloat(e.target.value);
+                                  if (Number.isNaN(value)) return;
+                                  handleQuantityChange(item.id, value);
+                                }}
                                 data-testid={`input-qty-${item.id}`}
                               />
                             </div>
@@ -408,7 +415,7 @@ export default function CreateTransfer() {
 
             <div className="space-y-2">
               <p className="font-medium">Items ({selectedItems.length})</p>
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border rounded-lg overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">
                     <tr>

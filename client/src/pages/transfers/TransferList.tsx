@@ -95,8 +95,8 @@ export default function TransferList() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 px-4 sm:px-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Stock Transfers</h1>
           <p className="text-muted-foreground mt-1">Move inventory between stores.</p>
@@ -109,7 +109,7 @@ export default function TransferList() {
       </div>
 
       <Tabs defaultValue="incoming" className="w-full">
-        <TabsList>
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="incoming">Incoming (Received)</TabsTrigger>
           <TabsTrigger value="outgoing">Outgoing (Sent)</TabsTrigger>
         </TabsList>
@@ -210,7 +210,7 @@ function TransferCard({ transfer, onAccept, onReject, onRevert, onAcceptReturn, 
   return (
     <Card data-testid={`card-transfer-${transfer.id}`}>
       <CardHeader className="pb-2">
-        <div className="flex justify-between items-start">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
             <CardTitle className="text-base font-medium flex items-center gap-2">
               <ArrowRightLeft className="h-4 w-4" />
@@ -227,7 +227,7 @@ function TransferCard({ transfer, onAccept, onReject, onRevert, onAcceptReturn, 
               )}
             </CardDescription>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {isIncoming && transfer.status === 'PENDING' && (
               <>
                 <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={onReject} data-testid="button-reject-transfer">
@@ -268,7 +268,7 @@ function TransferCard({ transfer, onAccept, onReject, onRevert, onAcceptReturn, 
           <div className="font-medium mb-2">Items in transit:</div>
           <ul className="space-y-2">
             {transfer.items?.map((item: any, idx: number) => (
-              <li key={idx} className="flex justify-between items-center">
+              <li key={idx} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <span className="font-medium">{item.name}</span>
                   <span className="text-muted-foreground ml-2">
