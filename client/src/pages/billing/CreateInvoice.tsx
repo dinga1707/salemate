@@ -31,7 +31,7 @@ export default function CreateInvoice() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [customerGstin, setCustomerGstin] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "UPI" | "BANK_TRANSFER" | "CHEQUE" | "CREDIT">("CASH");
+  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "UPI" | "BANK_TRANSFER" | "CHEQUE" | "CREDIT" | "PAY_LATER">("CASH");
   const [selectedItems, setSelectedItems] = useState<any[]>([]);
   const [openCombobox, setOpenCombobox] = useState(false);
 
@@ -77,7 +77,7 @@ export default function CreateInvoice() {
   };
 
   const updateQuantity = (id: string, qty: number) => {
-    if (qty < 1) return;
+    if (!Number.isFinite(qty) || qty <= 0) return;
     setSelectedItems(selectedItems.map(item => {
       if (item.id === id) {
         const total = (item.unitPrice * qty) - item.discount;
@@ -151,13 +151,13 @@ export default function CreateInvoice() {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 max-w-5xl mx-auto px-4 sm:px-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">New Invoice</h1>
           <p className="text-muted-foreground mt-1">Create a sale entry.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
            <Button variant="outline" onClick={() => setLocation("/billing")}>Cancel</Button>
            <Button onClick={handleSave} className="gap-2" disabled={createInvoiceMutation.isPending} data-testid="button-save-invoice">
              <Save className="h-4 w-4" /> {createInvoiceMutation.isPending ? "Saving..." : "Save Invoice"}
@@ -172,7 +172,7 @@ export default function CreateInvoice() {
               <CardTitle className="text-sm font-medium uppercase text-muted-foreground">Customer Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Customer Name</label>
                   <Input placeholder="Walk-in Customer" value={customerName} onChange={e => setCustomerName(e.target.value)} data-testid="input-customer-name" />
@@ -182,7 +182,7 @@ export default function CreateInvoice() {
                   <Input placeholder="Optional" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} data-testid="input-customer-phone" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">GSTIN</label>
                   <Input placeholder="e.g. 22AAAAA0000A1Z5" value={customerGstin} onChange={e => setCustomerGstin(e.target.value.toUpperCase())} data-testid="input-customer-gstin" />
@@ -199,6 +199,7 @@ export default function CreateInvoice() {
                       <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
                       <SelectItem value="CHEQUE">Cheque</SelectItem>
                       <SelectItem value="CREDIT">Credit</SelectItem>
+                      <SelectItem value="PAY_LATER">Pay Later</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -211,16 +212,16 @@ export default function CreateInvoice() {
           </Card>
 
           <Card className="min-h-[400px] flex flex-col">
-             <CardHeader className="pb-3 flex flex-row items-center justify-between">
+             <CardHeader className="pb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="text-sm font-medium uppercase text-muted-foreground">Items</CardTitle>
                <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" role="combobox" aria-expanded={openCombobox} className="w-[250px] justify-between" data-testid="button-add-item-to-invoice">
+                  <Button variant="outline" size="sm" role="combobox" aria-expanded={openCombobox} className="w-full sm:w-[250px] justify-between" data-testid="button-add-item-to-invoice">
                     <Plus className="mr-2 h-4 w-4" /> Add Item...
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[300px] p-0">
+                <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[300px] p-0">
                   <Command>
                     <CommandInput placeholder="Search item..." />
                     <CommandList>
@@ -242,7 +243,8 @@ export default function CreateInvoice() {
               </Popover>
             </CardHeader>
             <CardContent className="flex-1 p-0">
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[25%]">Item</TableHead>
@@ -279,11 +281,20 @@ export default function CreateInvoice() {
                         />
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.id, item.quantity - 1)}>-</Button>
-                          <span className="w-8 text-center text-sm">{item.quantity}</span>
-                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.id, item.quantity + 1)}>+</Button>
-                        </div>
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          min="0.001"
+                          step="0.001"
+                          value={item.quantity}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value);
+                            if (Number.isNaN(value)) return;
+                            updateQuantity(item.id, value);
+                          }}
+                          className="w-20 h-8 text-sm"
+                          data-testid={`input-qty-${item.id}`}
+                        />
                       </TableCell>
                       <TableCell className="text-right font-medium">₹{item.total.toFixed(2)}</TableCell>
                       <TableCell>
@@ -301,7 +312,8 @@ export default function CreateInvoice() {
                     </TableRow>
                   )}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </div>

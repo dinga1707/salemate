@@ -163,8 +163,8 @@ export default function Reports() {
   const totalTaxable = gstSummary.reduce((sum, g) => sum + g.taxableValue, 0);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 px-4 sm:px-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
           <p className="text-muted-foreground mt-1">View business reports and analytics.</p>
@@ -172,7 +172,7 @@ export default function Reports() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+        <TabsList className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4 lg:w-auto lg:inline-grid">
           <TabsTrigger value="party" className="gap-2" data-testid="tab-party">
             <Users className="h-4 w-4" />
             <span className="hidden sm:inline">Party</span>
@@ -193,7 +193,7 @@ export default function Reports() {
 
         <TabsContent value="party" className="space-y-4">
           <div className="flex items-center gap-2">
-            <div className="relative flex-1 max-w-sm">
+            <div className="relative w-full sm:flex-1 sm:max-w-sm">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search parties..."
@@ -211,7 +211,8 @@ export default function Reports() {
               <CardDescription>Stock value and item count by supplier</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Party Name</TableHead>
@@ -246,7 +247,8 @@ export default function Reports() {
                     </TableRow>
                   )}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -254,7 +256,7 @@ export default function Reports() {
         <TabsContent value="gst" className="space-y-4">
           <div className="flex items-center gap-2">
             <Select value={dateFilter} onValueChange={setDateFilter}>
-              <SelectTrigger className="w-[200px]" data-testid="select-date-filter">
+            <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-date-filter">
                 <Calendar className="mr-2 h-4 w-4" />
                 <SelectValue placeholder="Filter by date" />
               </SelectTrigger>
@@ -298,7 +300,8 @@ export default function Reports() {
               <CardDescription>Tax breakdown by rate</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>GST Rate</TableHead>
@@ -326,14 +329,15 @@ export default function Reports() {
                     </TableRow>
                   )}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="transaction" className="space-y-4">
           <div className="flex items-center gap-2">
-            <div className="relative flex-1 max-w-sm">
+            <div className="relative w-full sm:flex-1 sm:max-w-sm">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by invoice #, customer..."
@@ -344,7 +348,7 @@ export default function Reports() {
               />
             </div>
             <Select value={dateFilter} onValueChange={setDateFilter}>
-              <SelectTrigger className="w-[200px]" data-testid="select-transaction-date">
+              <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-transaction-date">
                 <Calendar className="mr-2 h-4 w-4" />
                 <SelectValue placeholder="Filter by date" />
               </SelectTrigger>
@@ -361,7 +365,8 @@ export default function Reports() {
               <CardDescription>All invoices and transactions</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Invoice #</TableHead>
@@ -395,14 +400,15 @@ export default function Reports() {
                     </TableRow>
                   )}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="stock" className="space-y-4">
           <div className="flex items-center gap-2">
-            <div className="relative flex-1 max-w-sm">
+            <div className="relative w-full sm:flex-1 sm:max-w-sm">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search items..."
@@ -455,7 +461,8 @@ export default function Reports() {
               <CardDescription>Inventory details by item</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Item Name</TableHead>
@@ -499,7 +506,8 @@ export default function Reports() {
                     </TableRow>
                   )}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

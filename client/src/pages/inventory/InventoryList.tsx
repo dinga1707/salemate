@@ -139,13 +139,13 @@ export default function InventoryList() {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 px-4 sm:px-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Inventory</h1>
           <p className="text-muted-foreground mt-1">Manage stock, prices, and brands.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Link href="/inventory/scan">
             <Button variant="outline" data-testid="button-scan-bill">
               <Camera className="mr-2 h-4 w-4" /> Scan Bill
@@ -155,8 +155,8 @@ export default function InventoryList() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative flex-1 sm:max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder="Search items..." 
@@ -171,7 +171,7 @@ export default function InventoryList() {
         </Button>
       </div>
 
-      <div className="rounded-md border bg-card">
+      <div className="rounded-md border bg-card overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -346,7 +346,7 @@ function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (op
           <Plus className="mr-2 h-4 w-4" /> Add Item
         </Button>
       </SheetTrigger>
-      <SheetContent className="overflow-y-auto w-[400px] sm:w-[540px]">
+      <SheetContent className="overflow-y-auto w-full sm:w-[540px]">
         <SheetHeader>
           <SheetTitle>Add New Stock</SheetTitle>
           <SheetDescription>
@@ -432,7 +432,7 @@ function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (op
               )}
             />
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                 control={form.control}
                 name="brand"
@@ -461,7 +461,7 @@ function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (op
                 />
             </div>
             
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                  <FormField
                 control={form.control}
                 name="quantity"
@@ -514,7 +514,7 @@ function AddItemSheet({ open, onOpenChange }: { open: boolean, onOpenChange: (op
                 />
             </div>
 
-            <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg border border-border/50">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg border border-border/50">
                  <FormField
                 control={form.control}
                 name="costPrice"
@@ -639,7 +639,7 @@ function EditItemSheet({ item, parties, onClose }: { item: Item | null; parties:
 
   return (
     <Sheet open={!!item} onOpenChange={() => onClose()}>
-      <SheetContent className="overflow-y-auto w-[400px] sm:w-[540px]">
+      <SheetContent className="overflow-y-auto w-full sm:w-[540px]">
         <SheetHeader>
           <SheetTitle>Edit Stock</SheetTitle>
           <SheetDescription>
@@ -725,7 +725,7 @@ function EditItemSheet({ item, parties, onClose }: { item: Item | null; parties:
               )}
             />
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                 control={form.control}
                 name="brand"
@@ -754,7 +754,7 @@ function EditItemSheet({ item, parties, onClose }: { item: Item | null; parties:
                 />
             </div>
             
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                  <FormField
                 control={form.control}
                 name="quantity"
@@ -807,7 +807,7 @@ function EditItemSheet({ item, parties, onClose }: { item: Item | null; parties:
                 />
             </div>
 
-            <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg border border-border/50">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg border border-border/50">
                  <FormField
                 control={form.control}
                 name="costPrice"

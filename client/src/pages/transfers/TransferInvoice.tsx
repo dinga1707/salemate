@@ -26,7 +26,7 @@ export default function TransferInvoice() {
 
   if (error || !invoiceData) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 px-4 sm:px-6">
         <Link href="/transfers">
           <Button variant="ghost" className="gap-2">
             <ArrowLeft className="h-4 w-4" /> Back to Transfers
@@ -46,8 +46,8 @@ export default function TransferInvoice() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between print:hidden">
+    <div className="space-y-6 px-4 sm:px-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
         <Link href="/transfers">
           <Button variant="ghost" className="gap-2">
             <ArrowLeft className="h-4 w-4" /> Back to Transfers
@@ -62,7 +62,7 @@ export default function TransferInvoice() {
 
       <Card className="max-w-4xl mx-auto">
         <CardHeader className="border-b">
-          <div className="flex justify-between items-start">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <CardTitle className="text-2xl">TRANSFER INVOICE</CardTitle>
               <p className="text-muted-foreground mt-1">{invoiceData.invoiceNumber}</p>
@@ -75,7 +75,7 @@ export default function TransferInvoice() {
         </CardHeader>
         
         <CardContent className="space-y-6 py-6">
-          <div className="grid grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
             <div>
               <h3 className="font-semibold text-sm text-muted-foreground mb-2">FROM (Sender)</h3>
               <div className="space-y-1">
@@ -100,7 +100,7 @@ export default function TransferInvoice() {
             </div>
           </div>
 
-          <div className="border rounded-lg overflow-hidden">
+          <div className="border rounded-lg overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
@@ -132,7 +132,7 @@ export default function TransferInvoice() {
           </div>
 
           <div className="flex justify-end">
-            <div className="w-64 space-y-2 text-sm">
+            <div className="w-full sm:w-64 space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal</span>
                 <span>₹{Number(invoiceData.subtotal).toFixed(2)}</span>

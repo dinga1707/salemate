@@ -5,7 +5,13 @@ import { useAuth } from "@/lib/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
-export default function Sidebar() {
+interface SidebarProps {
+  className?: string;
+  isMobile?: boolean;
+  onNavigate?: () => void;
+}
+
+export default function Sidebar({ className, isMobile = false, onNavigate }: SidebarProps) {
   const [location] = useLocation();
   const { user: store, signout } = useAuth();
 
@@ -23,8 +29,14 @@ export default function Sidebar() {
     return name.split(" ").map(n => n[0]).join("").toUpperCase().substring(0, 2);
   };
 
+  const containerClasses = cn(
+    "w-64 bg-sidebar border-r border-sidebar-border flex flex-col z-50",
+    isMobile ? "h-full" : "h-screen fixed left-0 top-0",
+    className
+  );
+
   return (
-    <div className="h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col fixed left-0 top-0 z-50">
+    <div className={containerClasses}>
       <div className="p-6 border-b border-sidebar-border">
         <div className="flex items-center gap-2 mb-1">
           <img 
@@ -62,7 +74,7 @@ export default function Sidebar() {
         {navItems.map((item) => {
           const isActive = location === item.href;
           return (
-            <Link key={item.href} href={item.href}>
+            <Link key={item.href} href={item.href} onClick={onNavigate}>
               <div
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors cursor-pointer",
@@ -81,7 +93,7 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-sidebar-border bg-sidebar-accent/10 space-y-3">
-        <Link href="/subscription">
+        <Link href="/subscription" onClick={onNavigate}>
           <div className="flex items-center gap-3 p-2 rounded-lg border border-border bg-background/50 hover:bg-primary/5 cursor-pointer transition-colors" data-testid="link-subscription">
             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
               <CreditCard className="h-4 w-4" />
@@ -96,7 +108,10 @@ export default function Sidebar() {
           variant="ghost" 
           size="sm" 
           className="w-full justify-start text-muted-foreground hover:text-destructive"
-          onClick={signout}
+          onClick={() => {
+            signout();
+            onNavigate?.();
+          }}
           data-testid="button-logout"
         >
           <LogOut className="h-4 w-4 mr-2" />

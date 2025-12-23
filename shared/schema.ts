@@ -8,7 +8,7 @@ export const subscriptionPlanEnum = pgEnum("subscription_plan", ["FREE", "BASIC"
 export const transitStatusEnum = pgEnum("transit_status", ["PENDING", "ACCEPTED", "REJECTED", "REVERTED", "RETURNED"]);
 export const invoiceStatusEnum = pgEnum("invoice_status", ["DRAFT", "PAID", "CANCELLED"]);
 export const invoiceTypeEnum = pgEnum("invoice_type", ["INVOICE", "PROFORMA"]);
-export const paymentMethodEnum = pgEnum("payment_method", ["CASH", "UPI", "BANK_TRANSFER", "CHEQUE", "CREDIT"]);
+export const paymentMethodEnum = pgEnum("payment_method", ["CASH", "UPI", "BANK_TRANSFER", "CHEQUE", "CREDIT", "PAY_LATER"]);
 
 // Parties (Suppliers) Table
 export const parties = pgTable("parties", {

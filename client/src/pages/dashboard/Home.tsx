@@ -15,18 +15,62 @@ export default function Home() {
     queryFn: () => api.invoices.list() 
   });
 
-  const totalStockValue = items?.reduce((acc, item) => acc + (Number(item.costPrice) * Number(item.quantity)), 0) || 0;
-  const totalSales = invoices?.reduce((acc, inv) => acc + Number(inv.grandTotal), 0) || 0;
   const lowStockItems = items?.filter(i => Number(i.quantity) < 5).length || 0;
+  const itemCostMap = new Map(
+    (items || []).map((item) => [item.id, Number(item.costPrice) || 0])
+  );
+  const currentMonthRevenue = (invoices || []).reduce((acc, inv) => {
+    const invoiceDate = new Date(inv.date);
+    const now = new Date();
+    const isCurrentMonth =
+      invoiceDate.getFullYear() === now.getFullYear() &&
+      invoiceDate.getMonth() === now.getMonth();
+    if (!isCurrentMonth) return acc;
+    return acc + Number(inv.grandTotal || 0);
+  }, 0);
+  const currentMonthProfit = (invoices || []).reduce((acc, inv) => {
+    const invoiceDate = new Date(inv.date);
+    const now = new Date();
+    const isCurrentMonth =
+      invoiceDate.getFullYear() === now.getFullYear() &&
+      invoiceDate.getMonth() === now.getMonth();
+    if (!isCurrentMonth) return acc;
+
+    const invoiceProfit = (inv.items || []).reduce((sum, item) => {
+      const quantity = Number(item.quantity) || 0;
+      const unitPrice = Number(item.unitPrice) || 0;
+      const discount = Number(item.discount) || 0;
+      const lineTotal = Number(item.total) || (unitPrice * quantity) - discount;
+      const costPrice = item.itemId ? (itemCostMap.get(item.itemId) || 0) : 0;
+      return sum + (lineTotal - (costPrice * quantity));
+    }, 0);
+
+    return acc + invoiceProfit;
+  }, 0);
+  const cashBalance = (invoices || []).reduce((acc, inv) => {
+    const method = inv.paymentMethod || "CASH";
+    if (method === "CASH") return acc + Number(inv.grandTotal || 0);
+    return acc;
+  }, 0);
+  const bankBalance = (invoices || []).reduce((acc, inv) => {
+    const method = inv.paymentMethod || "CASH";
+    if (method !== "CASH" && method !== "PAY_LATER") return acc + Number(inv.grandTotal || 0);
+    return acc;
+  }, 0);
+  const toReceiveBalance = (invoices || []).reduce((acc, inv) => {
+    const method = inv.paymentMethod || "CASH";
+    if (method === "PAY_LATER") return acc + Number(inv.grandTotal || 0);
+    return acc;
+  }, 0);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground mt-1">Overview of your store performance.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Link href="/billing/new">
             <Button size="lg" className="shadow-lg hover:shadow-xl transition-all" data-testid="button-new-invoice">
               <ShoppingCart className="mr-2 h-4 w-4" />
@@ -45,22 +89,24 @@ export default function Home() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">Current Month Profit</CardTitle>
             <IndianRupee className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" data-testid="text-total-revenue">₹{totalSales.toLocaleString('en-IN')}</div>
-            <p className="text-xs text-muted-foreground">+20.1% from last month</p>
+            <div className="text-2xl font-bold" data-testid="text-current-month-profit">₹{currentMonthProfit.toLocaleString('en-IN')}</div>
+            <p className="text-xs text-muted-foreground" data-testid="text-current-month-revenue">
+              Revenue: ₹{currentMonthRevenue.toLocaleString('en-IN')}
+            </p>
           </CardContent>
         </Card>
         <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Stock Value</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">To Receive</CardTitle>
+            <IndianRupee className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" data-testid="text-stock-value">₹{totalStockValue.toLocaleString('en-IN')}</div>
-            <p className="text-xs text-muted-foreground">{items?.length} distinct items</p>
+            <div className="text-2xl font-bold" data-testid="text-to-receive">₹{toReceiveBalance.toLocaleString('en-IN')}</div>
+            <p className="text-xs text-muted-foreground">Pay Later invoices</p>
           </CardContent>
         </Card>
         <Card className="hover:shadow-md transition-shadow">
@@ -75,14 +121,28 @@ export default function Home() {
         </Card>
         <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Invoices</CardTitle>
+            <CardTitle className="text-sm font-medium">Cash / Bank Balance</CardTitle>
+            <IndianRupee className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold" data-testid="text-cash-balance">₹{cashBalance.toLocaleString('en-IN')}</div>
+            <p className="text-xs text-muted-foreground" data-testid="text-bank-balance">
+              Bank: ₹{bankBalance.toLocaleString('en-IN')}
+            </p>
+          </CardContent>
+        </Card>
+        <Link href="/billing" className="block">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Invoices</CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold" data-testid="text-active-invoices">{invoices?.length || 0}</div>
             <p className="text-xs text-muted-foreground">This month</p>
           </CardContent>
-        </Card>
+          </Card>
+        </Link>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
